@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# commit-msg hook: Strip Co-Authored-By lines from commit messages
+# Install: git config core.hooksPath .githooks
+set -euo pipefail
+
+COMMIT_MSG_FILE="$1"
+
+# Remove any Co-Authored-By / Co-authored-by lines (case-insensitive)
+if grep -qi 'Co-Authored-By' "$COMMIT_MSG_FILE"; then
+    sed -i '/^[Cc]o-[Aa]uthored-[Bb]y:/d' "$COMMIT_MSG_FILE"
+    # Clean up trailing blank lines left behind
+    sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$COMMIT_MSG_FILE"
+    echo "commit-msg hook: stripped Co-Authored-By trailer(s)"
+fi

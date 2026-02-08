@@ -1,0 +1,12 @@
+[project]
+name = "tesmart-ctl"
+version = "0.1.0"
+description = "CLI tool for TESmart KVM switch control over TCP"
+requires-python = ">=3.10"
+
+[project.scripts]
+tesmart-ctl = "tesmart_ctl:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.backends._legacy:_Backend"

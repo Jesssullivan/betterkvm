@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# pre-commit hook: Prevent committing secrets and Claude artifacts
+set -euo pipefail
+
+ERRORS=0
+
+# Block .claude directories and CLAUDE.md files
+for pattern in '.claude/' 'CLAUDE.md'; do
+    if git diff --cached --name-only | grep -q "$pattern"; then
+        echo "ERROR: Staged file matches blocked pattern: $pattern"
+        git diff --cached --name-only | grep "$pattern"
+        ERRORS=1
+    fi
+done
+
+# Basic secret detection in staged diffs (exclude hook files themselves)
+SECRETS_PATTERN='(PRIVATE.KEY|BEGIN RSA|BEGIN OPENSSH|BEGIN PGP|password\s*=\s*["\x27][^"\x27]{8,}|api[_-]?key\s*=\s*["\x27]|secret[_-]?key\s*=\s*["\x27]|AWS_SECRET_ACCESS_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9\-]{20,})'
+DIFF_OUTPUT=$(git diff --cached -U0 -- ':!.githooks/*' ':!.github/*' ':!.gitlab-ci.yml')
+if echo "$DIFF_OUTPUT" | grep -qEi "$SECRETS_PATTERN"; then
+    echo "ERROR: Possible secret detected in staged changes:"
+    echo "$DIFF_OUTPUT" | grep -Eni "$SECRETS_PATTERN" | head -10
+    ERRORS=1
+fi
+
+if [ "$ERRORS" -ne 0 ]; then
+    echo ""
+    echo "Commit blocked. Fix the issues above or use ALLOW_DIRECT_COMMIT=1 git commit to bypass."
+    [ "${ALLOW_DIRECT_COMMIT:-0}" = "1" ] && exit 0
+    exit 1
+fi

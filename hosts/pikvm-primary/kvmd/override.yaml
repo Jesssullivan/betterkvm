@@ -1,0 +1,108 @@
+# PiKVM kvmd override configuration
+# Deploy with: just deploy-pikvm
+#
+# This file is copied to /etc/kvmd/override.yaml on the PiKVM Pi.
+# Validate after editing: kvmd -m
+
+kvmd:
+    # TESmart KVM switch integration
+    # Docs: https://docs.pikvm.org/tesmart/
+    gpio:
+        drivers:
+            tes:
+                type: tesmart
+                host: 192.168.1.10   # TESmart default IP (change to match your config)
+                port: 5000
+        scheme:
+            # Port 1
+            server0_led:
+                driver: tes
+                pin: 0
+                mode: input
+            server0_switch:
+                driver: tes
+                pin: 0
+                mode: output
+                switch: false
+            # Port 2
+            server1_led:
+                driver: tes
+                pin: 1
+                mode: input
+            server1_switch:
+                driver: tes
+                pin: 1
+                mode: output
+                switch: false
+            # Port 3
+            server2_led:
+                driver: tes
+                pin: 2
+                mode: input
+            server2_switch:
+                driver: tes
+                pin: 2
+                mode: output
+                switch: false
+            # Port 4
+            server3_led:
+                driver: tes
+                pin: 3
+                mode: input
+            server3_switch:
+                driver: tes
+                pin: 3
+                mode: output
+                switch: false
+            # Port 5
+            server4_led:
+                driver: tes
+                pin: 4
+                mode: input
+            server4_switch:
+                driver: tes
+                pin: 4
+                mode: output
+                switch: false
+            # Port 6
+            server5_led:
+                driver: tes
+                pin: 5
+                mode: input
+            server5_switch:
+                driver: tes
+                pin: 5
+                mode: output
+                switch: false
+            # Port 7
+            server6_led:
+                driver: tes
+                pin: 6
+                mode: input
+            server6_switch:
+                driver: tes
+                pin: 6
+                mode: output
+                switch: false
+            # Port 8
+            server7_led:
+                driver: tes
+                pin: 7
+                mode: input
+            server7_switch:
+                driver: tes
+                pin: 7
+                mode: output
+                switch: false
+        view:
+            table:
+                - ["TESmart KVM Switch"]
+                - []
+                - ["#RISC-V Board 1",  server0_led, "server0_switch|Switch"]
+                - ["#RISC-V Board 2",  server1_led, "server1_switch|Switch"]
+                - ["#ARM Board 1",     server2_led, "server2_switch|Switch"]
+                - ["#x86 Server 1",    server3_led, "server3_switch|Switch"]
+                - ["#x86 Server 2",    server4_led, "server4_switch|Switch"]
+                - ["#x86 Server 3",    server5_led, "server5_switch|Switch"]
+                - ["#Spare 1",         server6_led, "server6_switch|Switch"]
+                - ["#Spare 2",         server7_led, "server7_switch|Switch"]

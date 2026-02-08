@@ -1,0 +1,21 @@
+# sops-nix encryption rules
+# Generate your age key: age-keygen -o ~/.config/sops/age/keys.txt
+# Get host age keys: ssh-to-age < /etc/ssh/ssh_host_ed25519_key.pub
+
+keys:
+  # Developer age keys (replace with your actual key)
+  - &admin age1REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
+
+  # Host keys (populated after first boot -- see docs/architecture.md)
+  # Generate with: ssh-keyscan serial-console 2>/dev/null | ssh-to-age
+  # - &serial_console age1REPLACE_AFTER_FIRST_BOOT
+  # - &monitor_node age1REPLACE_AFTER_FIRST_BOOT
+
+creation_rules:
+  - path_regex: secrets/.*\.yaml$
+    key_groups:
+      - age:
+          - *admin
+          # Uncomment after first boot:
+          # - *serial_console
+          # - *monitor_node
