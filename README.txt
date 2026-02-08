@@ -1,6 +1,6 @@
 Hey!  This is a work in progress.
 
-This project spawned from the need to expand remove developement to support NoneX86 initiatives.
+This project spawned from the need to expand remote developement to support NoneX86 initiatives.
 
 
 This project converges tinyland.dev KVM hardware via a HKS801-M24 KVM; this allows us to provide
