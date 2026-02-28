@@ -61,7 +61,8 @@
 
             # Host identity
             { networking.hostName = hostname; }
-          ] ++ modules;
+          ]
+          ++ modules;
         };
     in
     {
