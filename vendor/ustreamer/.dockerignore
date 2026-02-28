@@ -1,0 +1,10 @@
+# Ignore everything
+*
+
+# Allow source code
+!Makefile
+!src/**
+!python/**
+!janus/**
+!man/**
+!pkg/docker/entry.sh
