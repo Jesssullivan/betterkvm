@@ -1,4 +1,5 @@
-{ config, pkgs, ... }: {
+{ config, pkgs, ... }:
+{
   services.tailscale = {
     enable = true;
     useRoutingFeatures = "server"; # Enable subnet routing capability

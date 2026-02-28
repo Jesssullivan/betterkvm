@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   cfg = config.services.lab-ser2net;
@@ -18,34 +23,37 @@ let
     ---
     ${lib.concatStringsSep "\n" (lib.mapAttrsToList connectionYaml cfg.connections)}
   '';
-in {
+in
+{
   options.services.lab-ser2net = {
     enable = lib.mkEnableOption "lab serial console server (ser2net)";
 
     connections = lib.mkOption {
-      type = lib.types.attrsOf (lib.types.submodule {
-        options = {
-          port = lib.mkOption {
-            type = lib.types.port;
-            description = "TCP port to listen on";
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            port = lib.mkOption {
+              type = lib.types.port;
+              description = "TCP port to listen on";
+            };
+            device = lib.mkOption {
+              type = lib.types.str;
+              description = "Serial device path (use /dev/serial/by-id/... for stability)";
+            };
+            speed = lib.mkOption {
+              type = lib.types.str;
+              default = "115200n81";
+              description = "Serial port settings (speed, parity, data bits, stop bits)";
+            };
+            description = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = "Human-readable name shown in banner";
+            };
           };
-          device = lib.mkOption {
-            type = lib.types.str;
-            description = "Serial device path (use /dev/serial/by-id/... for stability)";
-          };
-          speed = lib.mkOption {
-            type = lib.types.str;
-            default = "115200n81";
-            description = "Serial port settings (speed, parity, data bits, stop bits)";
-          };
-          description = lib.mkOption {
-            type = lib.types.str;
-            default = "";
-            description = "Human-readable name shown in banner";
-          };
-        };
-      });
-      default = {};
+        }
+      );
+      default = { };
       description = "Serial console connections to expose over TCP";
     };
   };
@@ -67,7 +75,6 @@ in {
     };
 
     # Open firewall ports for each connection
-    networking.firewall.allowedTCPPorts =
-      lib.mapAttrsToList (_: conn: conn.port) cfg.connections;
+    networking.firewall.allowedTCPPorts = lib.mapAttrsToList (_: conn: conn.port) cfg.connections;
   };
 }

@@ -1,7 +1,10 @@
 _: {
   users.users.admin = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "dialout" ]; # dialout for serial ports
+    extraGroups = [
+      "wheel"
+      "dialout"
+    ]; # dialout for serial ports
     openssh.authorizedKeys.keys = [
       # Replace with your SSH public key(s)
       "ssh-ed25519 AAAA_REPLACE_WITH_YOUR_KEY admin@workstation"

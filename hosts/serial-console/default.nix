@@ -1,4 +1,5 @@
-{ pkgs, ... }: {
+{ pkgs, ... }:
+{
   imports = [
     ../../modules/ser2net
     ../../modules/nut-server
@@ -128,8 +129,8 @@
 
   # Additional packages for this host
   environment.systemPackages = with pkgs; [
-    picocom    # Interactive serial terminal
-    minicom    # Alternative serial terminal
-    inetutils  # telnet client for testing ser2net
+    picocom # Interactive serial terminal
+    minicom # Alternative serial terminal
+    inetutils # telnet client for testing ser2net
   ];
 }

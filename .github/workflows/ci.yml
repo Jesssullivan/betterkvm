@@ -36,7 +36,7 @@ jobs:
         run: nix run nixpkgs#deadnix -- --fail --exclude vendor/ .
 
       - name: nixfmt
-        run: find . -name '*.nix' -not -path './vendor/*' -exec nix run nixpkgs#nixfmt -- --check {} +
+        run: find . -name '*.nix' -not -path './vendor/*' -exec nix run nixpkgs#nixfmt-rfc-style -- --check {} +
 
   check:
     name: Flake Check

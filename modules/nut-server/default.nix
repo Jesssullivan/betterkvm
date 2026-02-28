@@ -1,4 +1,5 @@
-{ config, ... }: {
+{ config, ... }:
+{
   # NUT (Network UPS Tools) -- server mode
   # Monitors a USB-attached UPS and serves status to other nodes
 
@@ -17,7 +18,10 @@
     };
 
     upsd.listen = [
-      { address = "0.0.0.0"; port = 3493; }
+      {
+        address = "0.0.0.0";
+        port = 3493;
+      }
     ];
 
     # NUT auth user for monitoring

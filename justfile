@@ -332,7 +332,7 @@ lint:
 
 # Format all Nix files (excludes vendor/)
 fmt:
-    find . -name '*.nix' -not -path './vendor/*' -exec nix run nixpkgs#nixfmt -- {} +
+    find . -name '*.nix' -not -path './vendor/*' -exec nix run nixpkgs#nixfmt-rfc-style -- {} +
 
 # Check flake
 check:
