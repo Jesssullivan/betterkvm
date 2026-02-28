@@ -1,0 +1,4 @@
+#define CHAR_BIT 8
+#define WITH_GPIO
+#define JANUS_PLUGIN_INIT(...) { __VA_ARGS__ }
+#define EVTHREAD_USE_PTHREADS_IMPLEMENTED 1

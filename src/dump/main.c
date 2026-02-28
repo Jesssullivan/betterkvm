@@ -1,0 +1,332 @@
+/*****************************************************************************
+#                                                                            #
+#    uStreamer - Lightweight and fast MJPEG-HTTP streamer.                   #
+#                                                                            #
+#    Copyright (C) 2018-2024  Maxim Devaev <mdevaev@gmail.com>               #
+#                                                                            #
+#    This program is free software: you can redistribute it and/or modify    #
+#    it under the terms of the GNU General Public License as published by    #
+#    the Free Software Foundation, either version 3 of the License, or       #
+#    (at your option) any later version.                                     #
+#                                                                            #
+#    This program is distributed in the hope that it will be useful,         #
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of          #
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           #
+#    GNU General Public License for more details.                            #
+#                                                                            #
+#    You should have received a copy of the GNU General Public License       #
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.  #
+#                                                                            #
+*****************************************************************************/
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <limits.h>
+#include <float.h>
+#include <getopt.h>
+#include <errno.h>
+
+#include "../libs/const.h"
+#include "../libs/errors.h"
+#include "../libs/tools.h"
+#include "../libs/logging.h"
+#include "../libs/frame.h"
+#include "../libs/memsink.h"
+#include "../libs/fpsi.h"
+#include "../libs/signal.h"
+#include "../libs/options.h"
+
+#include "file.h"
+
+
+enum _OPT_VALUES {
+	_O_SINK = 's',
+	_O_SINK_TIMEOUT = 't',
+	_O_OUTPUT = 'o',
+	_O_OUTPUT_JSON = 'j',
+	_O_COUNT = 'c',
+	_O_INTERVAL = 'i',
+	_O_KEY_REQUIRED = 'k',
+
+	_O_HELP = 'h',
+	_O_VERSION = 'v',
+
+	_O_LOG_LEVEL = 10000,
+	_O_PERF,
+	_O_VERBOSE,
+	_O_DEBUG,
+	_O_FORCE_LOG_COLORS,
+	_O_NO_LOG_COLORS,
+};
+
+static const struct option _LONG_OPTS[] = {
+	{"sink",				required_argument,	NULL,	_O_SINK},
+	{"sink-timeout",		required_argument,	NULL,	_O_SINK_TIMEOUT},
+	{"output",				required_argument,	NULL,	_O_OUTPUT},
+	{"output-json",			no_argument,		NULL,	_O_OUTPUT_JSON},
+	{"count",				required_argument,	NULL,	_O_COUNT},
+	{"interval",			required_argument,	NULL,	_O_INTERVAL},
+	{"key-required",		no_argument,		NULL,	_O_KEY_REQUIRED},
+
+	{"log-level",			required_argument,	NULL,	_O_LOG_LEVEL},
+	{"perf",				no_argument,		NULL,	_O_PERF},
+	{"verbose",				no_argument,		NULL,	_O_VERBOSE},
+	{"debug",				no_argument,		NULL,	_O_DEBUG},
+	{"force-log-colors",	no_argument,		NULL,	_O_FORCE_LOG_COLORS},
+	{"no-log-colors",		no_argument,		NULL,	_O_NO_LOG_COLORS},
+
+	{"help",				no_argument,		NULL,	_O_HELP},
+	{"version",				no_argument,		NULL,	_O_VERSION},
+
+	{NULL, 0, NULL, 0},
+};
+
+
+volatile bool _g_stop = false;
+
+
+typedef struct {
+	void *v_out;
+	void (*write)(void *v_out, const us_frame_s *frame);
+	void (*destroy)(void *v_out);
+} _output_context_s;
+
+
+static void _signal_handler(int signum);
+
+static int _dump_sink(
+	const char *sink_name,
+	unsigned sink_timeout,
+	long long count,
+	long double interval,
+	bool key_required,
+	_output_context_s *ctx);
+
+static void _help(FILE *fp);
+
+
+int main(int argc, char *argv[]) {
+	US_LOGGING_INIT;
+	US_THREAD_RENAME("main");
+
+	const char *sink_name = NULL;
+	unsigned sink_timeout = 1;
+	const char *out_path = NULL;
+	bool out_json = false;
+	long long count = 0;
+	long double interval = 0;
+	bool key_required = false;
+
+#	define OPT_SET(_dest, _value) { \
+			_dest = _value; \
+			break; \
+		}
+
+#	define OPT_NUMBER(_name, _dest, _min, _max, _base) { \
+			errno = 0; char *_end = NULL; long long _tmp = strtoll(optarg, &_end, _base); \
+			if (errno || *_end || _tmp < _min || _tmp > _max) { \
+				printf("Invalid value for '%s=%s': min=%lld, max=%lld\n", _name, optarg, (long long)_min, (long long)_max); \
+				return 1; \
+			} \
+			_dest = _tmp; \
+			break; \
+		}
+
+#	define OPT_LDOUBLE(_name, _dest, _min, _max) { \
+			errno = 0; char *_end = NULL; long double _tmp = strtold(optarg, &_end); \
+			if (errno || *_end || _tmp < _min || _tmp > _max) { \
+				printf("Invalid value for '%s=%s': min=%Lf, max=%Lf\n", _name, optarg, (long double)_min, (long double)_max); \
+				return 1; \
+			} \
+			_dest = _tmp; \
+			break; \
+		}
+
+	char short_opts[128];
+	us_build_short_options(_LONG_OPTS, short_opts, 128);
+
+	for (int ch; (ch = getopt_long(argc, argv, short_opts, _LONG_OPTS, NULL)) >= 0;) {
+		switch (ch) {
+			case _O_SINK:			OPT_SET(sink_name, optarg);
+			case _O_SINK_TIMEOUT:	OPT_NUMBER("--sink-timeout", sink_timeout, 1, 60, 0);
+			case _O_OUTPUT:			OPT_SET(out_path, optarg);
+			case _O_OUTPUT_JSON:	OPT_SET(out_json, true);
+			case _O_COUNT:			OPT_NUMBER("--count", count, 0, LLONG_MAX, 0);
+			case _O_INTERVAL:		OPT_LDOUBLE("--interval", interval, 0, 60);
+			case _O_KEY_REQUIRED:	OPT_SET(key_required, true);
+
+			case _O_LOG_LEVEL:			OPT_NUMBER("--log-level", us_g_log_level, US_LOG_LEVEL_INFO, US_LOG_LEVEL_DEBUG, 0);
+			case _O_PERF:				OPT_SET(us_g_log_level, US_LOG_LEVEL_PERF);
+			case _O_VERBOSE:			OPT_SET(us_g_log_level, US_LOG_LEVEL_VERBOSE);
+			case _O_DEBUG:				OPT_SET(us_g_log_level, US_LOG_LEVEL_DEBUG);
+			case _O_FORCE_LOG_COLORS:	OPT_SET(us_g_log_colored, true);
+			case _O_NO_LOG_COLORS:		OPT_SET(us_g_log_colored, false);
+
+			case _O_HELP:		_help(stdout); return 0;
+			case _O_VERSION:	puts(US_VERSION); return 0;
+
+			case 0:		break;
+			default:	return 1;
+		}
+	}
+
+#	undef OPT_LDOUBLE
+#	undef OPT_NUMBER
+#	undef OPT_SET
+
+	if (sink_name == NULL || sink_name[0] == '\0') {
+		puts("Missing option --sink. See --help for details.");
+		return 1;
+	}
+
+	_output_context_s ctx = {0};
+
+	if (out_path && out_path[0] != '\0') {
+		if ((ctx.v_out = (void*)us_output_file_init(out_path, out_json)) == NULL) {
+			return 1;
+		}
+		ctx.write = us_output_file_write;
+		ctx.destroy = us_output_file_destroy;
+	}
+
+	us_install_signals_handler(_signal_handler, false);
+	const int retval = abs(_dump_sink(sink_name, sink_timeout, count, interval, key_required, &ctx));
+	if (ctx.v_out && ctx.destroy) {
+		ctx.destroy(ctx.v_out);
+	}
+	return retval;
+}
+
+
+static void _signal_handler(int signum) {
+	char *const name = us_signum_to_string(signum);
+	US_LOG_INFO_NOLOCK("===== Stopping by %s =====", name);
+	free(name);
+	_g_stop = true;
+}
+
+static int _dump_sink(
+	const char *sink_name,
+	unsigned sink_timeout,
+	long long count,
+	long double interval,
+	bool key_required,
+	_output_context_s *ctx
+) {
+
+	int retval = -1;
+
+	if (count == 0) {
+		count = -1;
+	}
+
+	const useconds_t interval_us = interval * 1000000;
+
+	us_frame_s *frame = us_frame_init();
+	us_fpsi_s *fpsi = us_fpsi_init("SINK", false);
+	us_memsink_s *sink = NULL;
+
+	if ((sink = us_memsink_init_opened("input", sink_name, false, 0, false, 0, sink_timeout)) == NULL) {
+		goto error;
+	}
+
+	long double last_ts = 0;
+
+	while (!_g_stop) {
+		bool key_requested;
+		const int got = us_memsink_client_get(sink, frame, &key_requested, key_required);
+		if (got == 0) {
+			key_required = false;
+
+			const long double now = us_get_now_monotonic();
+
+			char fourcc_str[8];
+			US_LOG_VERBOSE("%s %.3Lf - %s %ux%u - gop=%u, key=%u, kr=%u - GRAB=%.3Lf ~~%.3Lf~~ ENC=%.3Lf ~~> LAT=%.3Lf - size=%zu",
+				(frame->online ? " ON" : "OFF"),
+				(last_ts ? now - last_ts : 0),
+				us_fourcc_to_string(frame->format, fourcc_str, 8),
+				frame->width,
+				frame->height,
+				frame->gop,
+				frame->key,
+				key_requested,
+				frame->grab_end_ts - frame->grab_begin_ts,
+				frame->encode_begin_ts - frame->grab_end_ts,
+				frame->encode_end_ts - frame->encode_begin_ts,
+				now - frame->grab_begin_ts,
+				frame->used);
+
+			last_ts = now;
+
+			us_fpsi_update(fpsi, true, NULL);
+
+			if (ctx->v_out != NULL) {
+				ctx->write(ctx->v_out, frame);
+			}
+
+			if (count >= 0) {
+				--count;
+				if (count <= 0) {
+					break;
+				}
+			}
+
+			if (interval_us > 0) {
+				usleep(interval_us);
+			}
+		} else if (got == US_ERROR_NO_DATA) {
+			usleep(1000);
+		} else {
+			goto error;
+		}
+	}
+
+	retval = 0;
+
+error:
+	US_DELETE(sink, us_memsink_destroy);
+	us_fpsi_destroy(fpsi);
+	us_frame_destroy(frame);
+	US_LOG_INFO("Bye-bye");
+	return retval;
+}
+
+static void _help(FILE *fp) {
+#	define SAY(_msg, ...) fprintf(fp, _msg "\n", ##__VA_ARGS__)
+	SAY("\nuStreamer-dump - Dump uStreamer's memory sink to file");
+	SAY("═════════════════════════════════════════════════════");
+	SAY("Version: %s; license: GPLv3", US_VERSION);
+	SAY("Copyright (C) 2018-2024 Maxim Devaev <mdevaev@gmail.com>\n");
+	SAY("Example:");
+	SAY("════════");
+	SAY("    ustreamer-dump --sink test --output - \\");
+	SAY("        | ffmpeg -use_wallclock_as_timestamps 1 -i pipe: -c:v libx264 test.mp4\n");
+	SAY("Sink options:");
+	SAY("═════════════");
+	SAY("    -s|--sink <name>  ──────── Memory sink ID. No default.\n");
+	SAY("    -t|--sink-timeout <sec>  ─ Timeout for the upcoming frame. Default: 1.\n");
+	SAY("    -o|--output <filename> ─── Filename to dump output to. Use '-' for stdout. Default: just consume the sink.\n");
+	SAY("    -j|--output-json  ──────── Format output as JSON. Required option --output. Default: disabled.\n");
+	SAY("    -c|--count  <N>  ───────── Limit the number of frames. Default: 0 (infinite).\n");
+	SAY("    -i|--interval <sec>  ───── Delay between reading frames (float). Default: 0.\n");
+	SAY("    -k|--key-required  ─────── Request keyframe from the sink. Default: disabled.\n");
+	SAY("Logging options:");
+	SAY("════════════════");
+	SAY("    --log-level <N>  ──── Verbosity level of messages from 0 (info) to 3 (debug).");
+	SAY("                          Enabling debugging messages can slow down the program.");
+	SAY("                          Available levels: 0 (info), 1 (performance), 2 (verbose), 3 (debug).");
+	SAY("                          Default: %d.\n", us_g_log_level);
+	SAY("    --perf  ───────────── Enable performance messages (same as --log-level=1). Default: disabled.\n");
+	SAY("    --verbose  ────────── Enable verbose messages and lower (same as --log-level=2). Default: disabled.\n");
+	SAY("    --debug  ──────────── Enable debug messages and lower (same as --log-level=3). Default: disabled.\n");
+	SAY("    --force-log-colors  ─ Force color logging. Default: colored if stderr is a TTY.\n");
+	SAY("    --no-log-colors  ──── Disable color logging. Default: ditto.\n");
+	SAY("Help options:");
+	SAY("═════════════");
+	SAY("    -h|--help  ─────── Print this text and exit.\n");
+	SAY("    -v|--version  ──── Print version and exit.\n");
+#	undef SAY
+}
