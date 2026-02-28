@@ -1,0 +1,3 @@
+# SSH public keys for PiKVM root access
+# Add your ed25519 public keys below, one per line
+ssh-ed25519 AAAA_REPLACE_WITH_YOUR_KEY admin@workstation

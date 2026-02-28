@@ -3,6 +3,9 @@
 #
 # This file is copied to /etc/kvmd/override.yaml on the PiKVM Pi.
 # Validate after editing: kvmd -m
+#
+# Hardware: TESmart HKS1601A1U (16-port HDMI KVM)
+# Controller: PiKVM A3 (Geekworm KVM-A3 HAT on Raspberry Pi 4)
 
 kvmd:
     # TESmart KVM switch integration
@@ -13,96 +16,254 @@ kvmd:
                 type: tesmart
                 host: 192.168.1.10   # TESmart default IP (change to match your config)
                 port: 5000
+
+            # Wake-on-LAN drivers for machines that support it
+            wol_honey:
+                type: wol
+                mac: "FF:FF:FF:FF:FF:FF"   # TODO: replace with honey MAC
+            wol_bumble:
+                type: wol
+                mac: "FF:FF:FF:FF:FF:FF"   # TODO: replace with bumble MAC
+            wol_xoxd_bates:
+                type: wol
+                mac: "FF:FF:FF:FF:FF:FF"   # TODO: replace with xoxd-bates MAC
+            wol_betsy:
+                type: wol
+                mac: "FF:FF:FF:FF:FF:FF"   # TODO: replace with betsy MAC
+            wol_musey:
+                type: wol
+                mac: "FF:FF:FF:FF:FF:FF"   # TODO: replace with musey MAC
+
         scheme:
-            # Port 1
-            server0_led:
+            # ── TESmart KVM port switching (16 ports) ──
+            # Port 1: honey
+            honey_led:
                 driver: tes
                 pin: 0
                 mode: input
-            server0_switch:
+            honey_switch:
                 driver: tes
                 pin: 0
                 mode: output
                 switch: false
-            # Port 2
-            server1_led:
+            # Port 2: bumble (ATX via X630-A5 RJ45)
+            bumble_led:
                 driver: tes
                 pin: 1
                 mode: input
-            server1_switch:
+            bumble_switch:
                 driver: tes
                 pin: 1
                 mode: output
                 switch: false
-            # Port 3
-            server2_led:
+            # Port 3: petting-zoo-mini
+            petting_zoo_mini_led:
                 driver: tes
                 pin: 2
                 mode: input
-            server2_switch:
+            petting_zoo_mini_switch:
                 driver: tes
                 pin: 2
                 mode: output
                 switch: false
-            # Port 4
-            server3_led:
+            # Port 4: xoxd-bates
+            xoxd_bates_led:
                 driver: tes
                 pin: 3
                 mode: input
-            server3_switch:
+            xoxd_bates_switch:
                 driver: tes
                 pin: 3
                 mode: output
                 switch: false
-            # Port 5
-            server4_led:
+            # Port 5: yoga
+            yoga_led:
                 driver: tes
                 pin: 4
                 mode: input
-            server4_switch:
+            yoga_switch:
                 driver: tes
                 pin: 4
                 mode: output
                 switch: false
-            # Port 6
-            server5_led:
+            # Port 6: mbp-13
+            mbp_13_led:
                 driver: tes
                 pin: 5
                 mode: input
-            server5_switch:
+            mbp_13_switch:
                 driver: tes
                 pin: 5
                 mode: output
                 switch: false
-            # Port 7
-            server6_led:
+            # Port 7: betsy
+            betsy_led:
                 driver: tes
                 pin: 6
                 mode: input
-            server6_switch:
+            betsy_switch:
                 driver: tes
                 pin: 6
                 mode: output
                 switch: false
-            # Port 8
-            server7_led:
+            # Port 8: musey
+            musey_led:
                 driver: tes
                 pin: 7
                 mode: input
-            server7_switch:
+            musey_switch:
                 driver: tes
                 pin: 7
                 mode: output
                 switch: false
+            # Port 9: sdr-1
+            sdr_1_led:
+                driver: tes
+                pin: 8
+                mode: input
+            sdr_1_switch:
+                driver: tes
+                pin: 8
+                mode: output
+                switch: false
+            # Port 10: g2-1
+            g2_1_led:
+                driver: tes
+                pin: 9
+                mode: input
+            g2_1_switch:
+                driver: tes
+                pin: 9
+                mode: output
+                switch: false
+            # Port 11: g2-2
+            g2_2_led:
+                driver: tes
+                pin: 10
+                mode: input
+            g2_2_switch:
+                driver: tes
+                pin: 10
+                mode: output
+                switch: false
+            # Port 12: t-deck
+            t_deck_led:
+                driver: tes
+                pin: 11
+                mode: input
+            t_deck_switch:
+                driver: tes
+                pin: 11
+                mode: output
+                switch: false
+            # Port 13: tdeck-pro
+            tdeck_pro_led:
+                driver: tes
+                pin: 12
+                mode: input
+            tdeck_pro_switch:
+                driver: tes
+                pin: 12
+                mode: output
+                switch: false
+            # Port 14: (unassigned)
+            port14_led:
+                driver: tes
+                pin: 13
+                mode: input
+            port14_switch:
+                driver: tes
+                pin: 13
+                mode: output
+                switch: false
+            # Port 15: (unassigned)
+            port15_led:
+                driver: tes
+                pin: 14
+                mode: input
+            port15_switch:
+                driver: tes
+                pin: 14
+                mode: output
+                switch: false
+            # Port 16: (unassigned)
+            port16_led:
+                driver: tes
+                pin: 15
+                mode: input
+            port16_switch:
+                driver: tes
+                pin: 15
+                mode: output
+                switch: false
+
+            # ── Wake-on-LAN ──
+            wol_honey_button:
+                driver: wol_honey
+                pin: 0
+                mode: output
+                switch: false
+            wol_bumble_button:
+                driver: wol_bumble
+                pin: 0
+                mode: output
+                switch: false
+            wol_xoxd_bates_button:
+                driver: wol_xoxd_bates
+                pin: 0
+                mode: output
+                switch: false
+            wol_betsy_button:
+                driver: wol_betsy
+                pin: 0
+                mode: output
+                switch: false
+            wol_musey_button:
+                driver: wol_musey
+                pin: 0
+                mode: output
+                switch: false
+
+        # ── ATX Power Control ──
+        # PiKVM V3/A3 defaults: GPIO 23/27/24/22 active.
+        # Directly wired to bumble via Geekworm X630-A5 RJ45-to-ATX cable.
+        # No override needed — V3 defaults are correct:
+        #   GPIO 24 → PowerSW (active-low pulse)
+        #   GPIO 25 → ResetSW (active-low pulse)
+        #   GPIO 21 → PowerLED (active-high input)
+        #   GPIO 20 → HDDLED (active-high input)
+
         view:
             table:
-                - ["TESmart KVM Switch"]
+                - ["TESmart HKS1601A1U — 16-Port KVM"]
                 - []
-                - ["#RISC-V Board 1",  server0_led, "server0_switch|Switch"]
-                - ["#RISC-V Board 2",  server1_led, "server1_switch|Switch"]
-                - ["#ARM Board 1",     server2_led, "server2_switch|Switch"]
-                - ["#x86 Server 1",    server3_led, "server3_switch|Switch"]
-                - ["#x86 Server 2",    server4_led, "server4_switch|Switch"]
-                - ["#x86 Server 3",    server5_led, "server5_switch|Switch"]
-                - ["#Spare 1",         server6_led, "server6_switch|Switch"]
-                - ["#Spare 2",         server7_led, "server7_switch|Switch"]
+                - ["#Port", "#Machine", "#Active", "#Switch"]
+                - ["#1  honey",            honey_led,            "honey_switch|Switch"]
+                - ["#2  bumble",           bumble_led,           "bumble_switch|Switch"]
+                - ["#3  petting-zoo-mini", petting_zoo_mini_led, "petting_zoo_mini_switch|Switch"]
+                - ["#4  xoxd-bates",       xoxd_bates_led,       "xoxd_bates_switch|Switch"]
+                - ["#5  yoga",             yoga_led,             "yoga_switch|Switch"]
+                - ["#6  mbp-13",           mbp_13_led,           "mbp_13_switch|Switch"]
+                - ["#7  betsy",            betsy_led,            "betsy_switch|Switch"]
+                - ["#8  musey",            musey_led,            "musey_switch|Switch"]
+                - ["#9  sdr-1",            sdr_1_led,            "sdr_1_switch|Switch"]
+                - ["#10 g2-1",             g2_1_led,             "g2_1_switch|Switch"]
+                - ["#11 g2-2",             g2_2_led,             "g2_2_switch|Switch"]
+                - ["#12 t-deck",           t_deck_led,           "t_deck_switch|Switch"]
+                - ["#13 tdeck-pro",        tdeck_pro_led,        "tdeck_pro_switch|Switch"]
+                - ["#14 (unassigned)",     port14_led,           "port14_switch|Switch"]
+                - ["#15 (unassigned)",     port15_led,           "port15_switch|Switch"]
+                - ["#16 (unassigned)",     port16_led,           "port16_switch|Switch"]
+                - []
+                - ["Wake-on-LAN"]
+                - []
+                - ["#honey",      "wol_honey_button|Wake"]
+                - ["#bumble",     "wol_bumble_button|Wake"]
+                - ["#xoxd-bates", "wol_xoxd_bates_button|Wake"]
+                - ["#betsy",      "wol_betsy_button|Wake"]
+                - ["#musey",      "wol_musey_button|Wake"]
+                - []
+                - ["Power Control — bumble (ATX via X630-A5 RJ45)"]
+                - []
+                - ["#Power",  "__atx_power_led__",  "__atx_power__||Power"]
+                - ["#Reset",  "",                   "__atx_reset__||Reset"]

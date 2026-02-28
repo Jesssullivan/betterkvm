@@ -1,4 +1,4 @@
-# Multiarch KVM Lab
+# Multiarch KVM Lab — 16-Port TESmart HKS1601A1U + PiKVM A3
 # All commands for building, deploying, and managing the lab
 
 set dotenv-load
@@ -27,7 +27,7 @@ flash host device:
 # Build and flash in one step
 build-and-flash host device: (build-image host) (flash host device)
 
-# Download and flash PiKVM OS image for the KVM Pi
+# Download, flash, and preseed PiKVM OS image
 flash-pikvm device variant="v3-hdmi-rpi4-box":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -39,6 +39,86 @@ flash-pikvm device variant="v3-hdmi-rpi4-box":
         curl -L "${url}" | xz -d > "${img}"
     fi
     ./scripts/flash-sd.sh "${img}" {{device}}
+    echo ""
+    echo "Preseeding PiKVM configuration..."
+    just preseed-pikvm {{device}}
+
+# Preseed a flashed PiKVM SD card with auth, config, and secrets
+preseed-pikvm device:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    preseed_dir="hosts/pikvm-primary/preseed"
+    override_file="hosts/pikvm-primary/kvmd/override.yaml"
+
+    # Determine OS for mount commands
+    if [[ "$(uname)" == "Darwin" ]]; then
+        # macOS: find the boot partition (FAT32, usually disk<N>s1)
+        boot_part="${{device}}s1"
+        mount_point="/Volumes/boot"
+        echo "Mounting ${boot_part}..."
+        diskutil mount "${boot_part}" || {
+            echo "ERROR: Could not mount ${boot_part}. Is the SD card inserted?"
+            exit 1
+        }
+    else
+        # Linux: mount the first partition
+        boot_part="${{device}}1"
+        mount_point=$(mktemp -d)
+        echo "Mounting ${boot_part} at ${mount_point}..."
+        sudo mount "${boot_part}" "${mount_point}"
+    fi
+
+    cleanup() {
+        echo "Unmounting boot partition..."
+        if [[ "$(uname)" == "Darwin" ]]; then
+            diskutil unmount "${mount_point}" 2>/dev/null || true
+        else
+            sudo umount "${mount_point}" 2>/dev/null || true
+            rmdir "${mount_point}" 2>/dev/null || true
+        fi
+    }
+    trap cleanup EXIT
+
+    # Copy preseed files
+    echo "Copying preseed files..."
+    cp "${preseed_dir}/pikvm.txt" "${mount_point}/pikvm.txt"
+
+    # Copy preseed scripts
+    mkdir -p "${mount_point}/pikvm-scripts.d"
+    cp "${preseed_dir}/pikvm-scripts.d/"*.sh "${mount_point}/pikvm-scripts.d/"
+    chmod +x "${mount_point}/pikvm-scripts.d/"*.sh
+
+    # Copy override.yaml
+    cp "${override_file}" "${mount_point}/override.yaml"
+
+    # Copy SSH authorized_keys (use local copy, or fall back to .example)
+    if [ -f "${preseed_dir}/authorized_keys" ]; then
+        cp "${preseed_dir}/authorized_keys" "${mount_point}/authorized_keys"
+    elif [ -f "${preseed_dir}/authorized_keys.example" ]; then
+        echo "WARNING: Using authorized_keys.example — copy to authorized_keys and add your real keys"
+        cp "${preseed_dir}/authorized_keys.example" "${mount_point}/authorized_keys"
+    else
+        echo "WARNING: No authorized_keys found, skipping SSH key preseed"
+    fi
+
+    # Decrypt and inject secrets
+    echo "Decrypting secrets..."
+    secrets_dir="${mount_point}/pikvm-secrets"
+    mkdir -p "${secrets_dir}"
+
+    sops -d --extract '["pikvm_root_password_hash"]' secrets/pikvm.yaml \
+        > "${secrets_dir}/root-password-hash"
+    sops -d --extract '["kvmd_admin_password"]' secrets/pikvm.yaml \
+        > "${secrets_dir}/kvmd-admin-password"
+    sops -d --extract '["tailscale_authkey"]' secrets/pikvm.yaml \
+        > "${secrets_dir}/tailscale-authkey"
+
+    echo "Preseed complete. Files on boot partition:"
+    ls -la "${mount_point}/pikvm.txt" \
+           "${mount_point}/override.yaml" \
+           "${mount_point}/authorized_keys" \
+           "${mount_point}/pikvm-scripts.d/" \
+           "${mount_point}/pikvm-secrets/"
 
 # ─── Remote Deployment ───────────────────────────────────────
 
@@ -73,7 +153,7 @@ deploy-pikvm:
 
 # ─── TESmart KVM Switch ─────────────────────────────────────
 
-# Switch TESmart to port N (1-8 or 1-16)
+# Switch TESmart to port N (1-16)
 switch-port n:
     python3 packages/tesmart-ctl/tesmart_ctl.py set {{n}}
 
@@ -84,6 +164,18 @@ current-port:
 # Toggle TESmart buzzer (on/off)
 buzzer state:
     python3 packages/tesmart-ctl/tesmart_ctl.py buzzer {{state}}
+
+# Toggle TESmart input auto-detection (on/off)
+tesmart-autodetect state:
+    python3 packages/tesmart-ctl/tesmart_ctl.py autodetect {{state}}
+
+# Set TESmart LCD timeout (0=always on, 10, 30 seconds)
+tesmart-lcd seconds:
+    python3 packages/tesmart-ctl/tesmart_ctl.py lcd {{seconds}}
+
+# Query TESmart switch info (active port + network config)
+tesmart-info:
+    python3 packages/tesmart-ctl/tesmart_ctl.py info
 
 # ─── Serial Console ─────────────────────────────────────────
 
@@ -96,14 +188,27 @@ serial name port="":
         telnet "${console_host}" {{port}}
     else
         case "{{name}}" in
-            riscv1)   telnet "${console_host}" 3001 ;;
-            riscv2)   telnet "${console_host}" 3002 ;;
-            arm1)     telnet "${console_host}" 3003 ;;
-            server1)  telnet "${console_host}" 3004 ;;
-            server2)  telnet "${console_host}" 3005 ;;
-            server3)  telnet "${console_host}" 3006 ;;
+            honey)             telnet "${console_host}" 3001 ;;
+            bumble)            telnet "${console_host}" 3002 ;;
+            petting-zoo-mini)  telnet "${console_host}" 3003 ;;
+            xoxd-bates)        telnet "${console_host}" 3004 ;;
+            yoga)              telnet "${console_host}" 3005 ;;
+            mbp-13)            telnet "${console_host}" 3006 ;;
+            betsy)             telnet "${console_host}" 3007 ;;
+            musey)             telnet "${console_host}" 3008 ;;
+            sdr-1)             telnet "${console_host}" 3009 ;;
+            g2-1)              telnet "${console_host}" 3010 ;;
+            g2-2)              telnet "${console_host}" 3011 ;;
+            t-deck)            telnet "${console_host}" 3012 ;;
+            tdeck-pro)         telnet "${console_host}" 3013 ;;
+            port14)            telnet "${console_host}" 3014 ;;
+            port15)            telnet "${console_host}" 3015 ;;
+            port16)            telnet "${console_host}" 3016 ;;
             *)
-                echo "Unknown console '{{name}}'. Known: riscv1, riscv2, arm1, server1, server2, server3"
+                echo "Unknown console '{{name}}'."
+                echo "Known: honey, bumble, petting-zoo-mini, xoxd-bates, yoga, mbp-13,"
+                echo "       betsy, musey, sdr-1, g2-1, g2-2, t-deck, tdeck-pro,"
+                echo "       port14, port15, port16"
                 echo "Or specify port directly: just serial {{name}} <port>"
                 exit 1
                 ;;
@@ -113,6 +218,32 @@ serial name port="":
 # Discover USB serial devices on the serial-console Pi
 discover-serial:
     ./scripts/serial-discover.sh
+
+# ─── Subtree Management ─────────────────────────────────────
+
+# Update vendor subtrees from upstream (all or one prefix)
+subtree-update target="all":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    update_subtree() {
+        local prefix="$1" remote="$2" branch="$3"
+        echo "Updating ${prefix} from ${remote}/${branch}..."
+        git subtree pull --prefix="${prefix}" "${remote}" "${branch}" --squash
+    }
+    case "{{target}}" in
+        all)
+            update_subtree vendor/kvmd pikvm-kvmd master
+            update_subtree vendor/ustreamer pikvm-ustreamer master
+            update_subtree vendor/os pikvm-os master
+            ;;
+        vendor/kvmd)      update_subtree vendor/kvmd pikvm-kvmd master ;;
+        vendor/ustreamer) update_subtree vendor/ustreamer pikvm-ustreamer master ;;
+        vendor/os)        update_subtree vendor/os pikvm-os master ;;
+        *)
+            echo "Unknown subtree '{{target}}'. Known: all, vendor/kvmd, vendor/ustreamer, vendor/os"
+            exit 1
+            ;;
+    esac
 
 # ─── Status & Health ─────────────────────────────────────────
 
@@ -164,14 +295,14 @@ nut-status:
 update:
     nix flake update
 
-# Lint all Nix files
+# Lint all Nix files (excludes vendor/)
 lint:
-    nix run nixpkgs#statix -- check .
-    nix run nixpkgs#deadnix -- .
+    nix run nixpkgs#statix -- check . --ignore vendor/
+    nix run nixpkgs#deadnix -- --exclude vendor/ .
 
-# Format all Nix files
+# Format all Nix files (excludes vendor/)
 fmt:
-    nix run nixpkgs#nixfmt -- .
+    find . -name '*.nix' -not -path './vendor/*' -exec nix run nixpkgs#nixfmt -- {} +
 
 # Check flake
 check:
