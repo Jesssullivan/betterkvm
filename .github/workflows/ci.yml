@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Nix
+    runs-on: tinyland-nix
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: statix
+        run: statix check . --ignore vendor/
+
+      - name: deadnix
+        run: deadnix --fail --exclude vendor/ .
+
+      - name: nixfmt
+        run: find . -name '*.nix' -not -path './vendor/*' -exec nixfmt --check {} +
+
+  check:
+    name: Flake Check
+    runs-on: tinyland-nix
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup QEMU for aarch64
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Configure Attic cache
+        uses: ryanccn/attic-action@v0
+        with:
+          endpoint: ${{ secrets.ATTIC_SERVER }}
+          cache: main
+          token: ${{ secrets.ATTIC_TOKEN }}
+          skip-push: true
+
+      - name: Flake check
+        run: |
+          nix flake check \
+            --extra-platforms aarch64-linux \
+            --print-build-logs
+
+  build-packages:
+    name: Build Packages
+    runs-on: tinyland-nix
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Attic cache
+        uses: ryanccn/attic-action@v0
+        with:
+          endpoint: ${{ secrets.ATTIC_SERVER }}
+          cache: main
+          token: ${{ secrets.ATTIC_TOKEN }}
+
+      - name: Build tesmart-ctl
+        run: nix build .#packages.x86_64-linux.tesmart-ctl --print-build-logs
+
+  build-image:
+    name: Build SD Image
+    runs-on: tinyland-nix
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup QEMU for aarch64
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Configure Attic cache
+        uses: ryanccn/attic-action@v0
+        with:
+          endpoint: ${{ secrets.ATTIC_SERVER }}
+          cache: main
+          token: ${{ secrets.ATTIC_TOKEN }}
+
+      - name: Build serial-console SD image
+        run: |
+          nix build .#images.serial-console \
+            --extra-platforms aarch64-linux \
+            --print-build-logs \
+            --out-link result-image
+
+      - name: Report image size
+        run: |
+          image=$(find result-image/ -name '*.img*' | head -1)
+          echo "Image: ${image}"
+          ls -lh "${image}"

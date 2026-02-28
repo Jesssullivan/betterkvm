@@ -1,6 +1,13 @@
 {
   description = "Multiarch KVM Lab - Raspberry Pi fleet management";
 
+  # Attic binary cache — CI pushes all derivations here.
+  # Replace placeholders after running: attic cache info main
+  nixConfig = {
+    extra-substituters = [ "https://ATTIC_CACHE_URL/main" ];
+    extra-trusted-public-keys = [ "main:REPLACE_WITH_ATTIC_PUBLIC_KEY" ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -112,6 +119,7 @@
         ssh-to-age
         nixos-rebuild
         zstd
+        gh
       ];
     };
   };

@@ -120,6 +120,36 @@ preseed-pikvm device:
            "${mount_point}/pikvm-scripts.d/" \
            "${mount_point}/pikvm-secrets/"
 
+# Download pre-built SD image from GitHub releases
+download-image host version="latest":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p images
+    if [ "{{version}}" = "latest" ]; then
+        echo "Fetching latest release..."
+        tag=$(gh release view --json tagName --jq '.tagName') || {
+            echo "ERROR: No release found. Build locally with: just build-image {{host}}"
+            exit 1
+        }
+    else
+        tag="{{version}}"
+    fi
+    echo "Downloading betterkvm-{{host}}-${tag}.img.zst..."
+    gh release download "${tag}" --pattern "*{{host}}*" --dir images/ --clobber
+    zst_file=$(find images/ -name "betterkvm-{{host}}-${tag}.img.zst" | head -1)
+    if [ -z "${zst_file}" ]; then
+        echo "ERROR: No image artifact found for {{host}} in release ${tag}"
+        exit 1
+    fi
+    echo "Decompressing..."
+    zstd -d "${zst_file}" -o "images/{{host}}.img" --force
+    echo "Image ready: images/{{host}}.img"
+    ls -lh "images/{{host}}.img"
+
+# Download pre-built image and flash to SD card
+download-and-flash host device version="latest": (download-image host version)
+    ./scripts/flash-sd.sh "images/{{host}}.img" {{device}}
+
 # ─── Remote Deployment ───────────────────────────────────────
 
 # Deploy NixOS configuration to a running Pi via deploy-rs

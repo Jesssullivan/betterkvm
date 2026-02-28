@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release SD Image
+    runs-on: tinyland-nix
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup QEMU for aarch64
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Configure Attic cache
+        uses: ryanccn/attic-action@v0
+        with:
+          endpoint: ${{ secrets.ATTIC_SERVER }}
+          cache: main
+          token: ${{ secrets.ATTIC_TOKEN }}
+
+      - name: Build serial-console SD image
+        run: |
+          nix build .#images.serial-console \
+            --extra-platforms aarch64-linux \
+            --print-build-logs \
+            --out-link result-image
+
+      - name: Prepare release artifact
+        id: artifact
+        run: |
+          src=$(find result-image/ -name '*.img*' | head -1)
+          dest="betterkvm-serial-console-${{ github.ref_name }}.img.zst"
+          cp "${src}" "${dest}"
+          echo "file=${dest}" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -h "${dest}" | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          prev=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "${prev}" ]; then
+            body="Initial release"
+          else
+            body=$(git log "${prev}..${{ github.ref_name }}" --pretty=format:"- %s" --reverse)
+          fi
+          {
+            echo "body<<NOTES_EOF"
+            echo "${body}"
+            echo "NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: BetterKVM ${{ github.ref_name }}
+          body: |
+            ## SD Card Image
+
+            **Size**: ${{ steps.artifact.outputs.size }}
+
+            Download and flash:
+            ```bash
+            just download-image serial-console ${{ github.ref_name }}
+            just flash serial-console /dev/sdX
+            ```
+
+            Or manually:
+            ```bash
+            gh release download ${{ github.ref_name }} --pattern "*.img.zst" --dir images/
+            zstd -d images/betterkvm-serial-console-${{ github.ref_name }}.img.zst
+            sudo dd if=images/betterkvm-serial-console-*.img of=/dev/sdX bs=4M status=progress
+            ```
+
+            ## Changes
+
+            ${{ steps.notes.outputs.body }}
+          files: ${{ steps.artifact.outputs.file }}
