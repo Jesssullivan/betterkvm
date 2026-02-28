@@ -13,30 +13,43 @@ concurrency:
 permissions:
   contents: read
 
+# Switch to tinyland-nix when ARC runners are deployed
+env:
+  NIX_RUNNER: ubuntu-latest
+
 jobs:
   lint:
     name: Lint Nix
-    runs-on: tinyland-nix
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
       - name: statix
-        run: statix check . --ignore vendor/
+        run: nix run nixpkgs#statix -- check . --ignore vendor/
 
       - name: deadnix
-        run: deadnix --fail --exclude vendor/ .
+        run: nix run nixpkgs#deadnix -- --fail --exclude vendor/ .
 
       - name: nixfmt
-        run: find . -name '*.nix' -not -path './vendor/*' -exec nixfmt --check {} +
+        run: find . -name '*.nix' -not -path './vendor/*' -exec nix run nixpkgs#nixfmt -- --check {} +
 
   check:
     name: Flake Check
-    runs-on: tinyland-nix
+    runs-on: ubuntu-latest
     needs: lint
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: |
+            extra-platforms = aarch64-linux
 
       - name: Setup QEMU for aarch64
         uses: docker/setup-qemu-action@v3
@@ -52,18 +65,18 @@ jobs:
           skip-push: true
 
       - name: Flake check
-        run: |
-          nix flake check \
-            --extra-platforms aarch64-linux \
-            --print-build-logs
+        run: nix flake check --print-build-logs
 
   build-packages:
     name: Build Packages
-    runs-on: tinyland-nix
+    runs-on: ubuntu-latest
     needs: lint
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
 
       - name: Configure Attic cache
         uses: ryanccn/attic-action@v0
@@ -77,11 +90,17 @@ jobs:
 
   build-image:
     name: Build SD Image
-    runs-on: tinyland-nix
+    runs-on: ubuntu-latest
     needs: lint
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: |
+            extra-platforms = aarch64-linux
 
       - name: Setup QEMU for aarch64
         uses: docker/setup-qemu-action@v3
@@ -98,7 +117,6 @@ jobs:
       - name: Build serial-console SD image
         run: |
           nix build .#images.serial-console \
-            --extra-platforms aarch64-linux \
             --print-build-logs \
             --out-link result-image
 

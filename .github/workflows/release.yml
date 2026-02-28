@@ -10,12 +10,18 @@ permissions:
 jobs:
   release:
     name: Build & Release SD Image
-    runs-on: tinyland-nix
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: |
+            extra-platforms = aarch64-linux
 
       - name: Setup QEMU for aarch64
         uses: docker/setup-qemu-action@v3
@@ -32,7 +38,6 @@ jobs:
       - name: Build serial-console SD image
         run: |
           nix build .#images.serial-console \
-            --extra-platforms aarch64-linux \
             --print-build-logs \
             --out-link result-image
 
