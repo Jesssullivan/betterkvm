@@ -1,4 +1,4 @@
-{ ... }: {
+_: {
   users.users.admin = {
     isNormalUser = true;
     extraGroups = [ "wheel" "dialout" ]; # dialout for serial ports
