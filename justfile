@@ -387,3 +387,466 @@ _resolve-host host:
         monitor-node)   echo "${MONITOR_HOST:-monitor-node}" ;;
         *) echo "{{host}}" ;;
     esac
+
+# ─── Setup & Bootstrap ──────────────────────────────────────
+
+# Full guided setup: preflight → secrets → nix wiring
+setup: preflight setup-secrets setup-nix
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Setup complete!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Next steps:"
+    echo "  1. just build-image serial-console"
+    echo "  2. just flash serial-console /dev/sdX"
+    echo "  3. just flash-pikvm /dev/sdX"
+    echo "  4. Boot both Pis, then: just setup-post-boot"
+    echo ""
+
+# Phase 0: Check all prerequisites
+preflight:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    pass=0; fail=0; warn=0
+
+    check() {
+        local label="$1" cmd="$2" extra="${3:-}"
+        if eval "$cmd" &>/dev/null; then
+            printf "  \033[32m✓\033[0m %s\n" "$label"
+            ((pass++))
+        elif [ -n "$extra" ]; then
+            printf "  \033[33m⚠\033[0m %s — %s\n" "$label" "$extra"
+            ((warn++))
+        else
+            printf "  \033[31m✗\033[0m %s\n" "$label"
+            ((fail++))
+        fi
+    }
+
+    echo "━━━ Preflight Check ━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Tools:"
+    check "nix"         "command -v nix"
+    check "sops"        "command -v sops"
+    check "age"         "command -v age"
+    check "ssh-to-age"  "command -v ssh-to-age"
+    check "just"        "command -v just"
+    check "gh"          "command -v gh"
+    check "mkpasswd"    "command -v mkpasswd" "run 'nix develop' to get mkpasswd"
+
+    echo ""
+    echo "Keys:"
+    check "age key (~/.config/sops/age/keys.txt)" \
+          "test -f ~/.config/sops/age/keys.txt"
+    check "SSH key (~/.ssh/id_ed25519.pub or id_rsa.pub)" \
+          "test -f ~/.ssh/id_ed25519.pub || test -f ~/.ssh/id_rsa.pub"
+
+    echo ""
+    echo "Configuration:"
+    check ".sops.yaml — age key configured" \
+          "! grep -q 'REPLACE_WITH_YOUR_AGE_PUBLIC_KEY' .sops.yaml" \
+          "run 'just setup-secrets'"
+    check "users.nix — SSH key configured" \
+          "! grep -q 'AAAA_REPLACE_WITH_YOUR_KEY' hosts/common/users.nix" \
+          "run 'just setup-secrets'"
+    check "secrets/pikvm.yaml — encrypted" \
+          "grep -q '^sops:' secrets/pikvm.yaml" \
+          "run 'just setup-secrets'"
+    check "tailscale.nix — authKeyFile wired" \
+          "grep -q 'authKeyFile = config.sops' hosts/common/tailscale.nix" \
+          "run 'just setup-nix'"
+    check "nut-server — sops password wired" \
+          "grep -q 'config.sops.secrets.nut-password.path' modules/nut-server/default.nix" \
+          "run 'just setup-nix'"
+    check "secrets.nix — exists" \
+          "test -f hosts/common/secrets.nix" \
+          "run 'just setup-nix'"
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    printf "  \033[32m%d passed\033[0m  " "$pass"
+    [ "$warn" -gt 0 ] && printf "\033[33m%d warnings\033[0m  " "$warn"
+    [ "$fail" -gt 0 ] && printf "\033[31m%d failed\033[0m" "$fail"
+    echo ""
+
+    if [ "$fail" -gt 0 ]; then
+        echo "  Fix failures above before continuing."
+        exit 1
+    fi
+
+# Phase 1: Bootstrap identity and secrets (interactive)
+setup-secrets tskey="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "━━━ Secrets Bootstrap ━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    # ── Backup originals ──
+    mkdir -p .setup-backup
+    for f in .sops.yaml hosts/common/users.nix secrets/pikvm.yaml; do
+        if [ -f "$f" ] && [ ! -f ".setup-backup/$(basename "$f")" ]; then
+            cp "$f" ".setup-backup/$(basename "$f")"
+        fi
+    done
+
+    # ── 1. Age public key ──
+    if ! test -f ~/.config/sops/age/keys.txt; then
+        echo "ERROR: No age key found at ~/.config/sops/age/keys.txt"
+        echo "Generate one with: age-keygen -o ~/.config/sops/age/keys.txt"
+        exit 1
+    fi
+    age_pubkey=$(age-keygen -y ~/.config/sops/age/keys.txt)
+    echo "  Age public key: ${age_pubkey}"
+
+    # ── 2. SSH public key ──
+    ssh_pubkey=""
+    for keyfile in ~/.ssh/id_ed25519.pub ~/.ssh/id_rsa.pub ~/.ssh/id_ecdsa.pub; do
+        if [ -f "$keyfile" ]; then
+            ssh_pubkey=$(cat "$keyfile")
+            echo "  SSH public key:  ${keyfile}"
+            break
+        fi
+    done
+    if [ -z "$ssh_pubkey" ]; then
+        echo "ERROR: No SSH public key found in ~/.ssh/"
+        echo "Generate one with: ssh-keygen -t ed25519"
+        exit 1
+    fi
+
+    # ── 3. Tailscale auth key ──
+    ts_key="{{tskey}}"
+    if [ -z "$ts_key" ]; then
+        echo ""
+        echo "  Tailscale auth key (from https://login.tailscale.com/admin/settings/keys)"
+        echo "  Must be reusable. Leave blank to skip (manual 'tailscale up' after boot)."
+        printf "  > "
+        read -r ts_key
+    fi
+
+    # ── 4. PiKVM root password ──
+    echo ""
+    echo "  PiKVM root password (will be hashed with SHA-512):"
+    printf "  > "
+    read -rs root_pw
+    echo ""
+    if [ -z "$root_pw" ]; then
+        echo "ERROR: Root password cannot be empty"
+        exit 1
+    fi
+    root_hash=$(echo "$root_pw" | mkpasswd -m sha-512 --stdin)
+
+    # ── 5. kvmd admin password ──
+    echo "  kvmd admin password (leave blank to generate random 16-char):"
+    printf "  > "
+    read -rs kvmd_pw
+    echo ""
+    if [ -z "$kvmd_pw" ]; then
+        kvmd_pw=$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
+        echo "  Generated kvmd password (save this): ${kvmd_pw}"
+    fi
+
+    echo ""
+    echo "Applying configuration..."
+
+    # ── Write .sops.yaml ──
+    if grep -q 'REPLACE_WITH_YOUR_AGE_PUBLIC_KEY' .sops.yaml; then
+        sed -i.bak "s|age1REPLACE_WITH_YOUR_AGE_PUBLIC_KEY|${age_pubkey}|" .sops.yaml
+        rm -f .sops.yaml.bak
+        echo "  ✓ .sops.yaml — age key configured"
+    else
+        echo "  ⊘ .sops.yaml — already configured, skipping"
+    fi
+
+    # ── Write users.nix ──
+    if grep -q 'AAAA_REPLACE_WITH_YOUR_KEY' hosts/common/users.nix; then
+        # Escape the SSH key for sed (contains / and +)
+        escaped_key=$(printf '%s\n' "$ssh_pubkey" | sed 's/[&/\]/\\&/g')
+        sed -i.bak "s|ssh-ed25519 AAAA_REPLACE_WITH_YOUR_KEY admin@workstation|${escaped_key}|g" \
+            hosts/common/users.nix
+        rm -f hosts/common/users.nix.bak
+        echo "  ✓ users.nix — SSH keys configured"
+    else
+        echo "  ⊘ users.nix — already configured, skipping"
+    fi
+
+    # ── Create authorized_keys for PiKVM preseed ──
+    preseed_dir="hosts/pikvm-primary/preseed"
+    if [ ! -f "${preseed_dir}/authorized_keys" ] || \
+       grep -q 'AAAA_REPLACE_WITH_YOUR_KEY' "${preseed_dir}/authorized_keys" 2>/dev/null; then
+        printf "# SSH public keys for PiKVM root access\n%s\n" "$ssh_pubkey" \
+            > "${preseed_dir}/authorized_keys"
+        echo "  ✓ preseed/authorized_keys — created with SSH key"
+    else
+        echo "  ⊘ preseed/authorized_keys — already exists, skipping"
+    fi
+
+    # ── Write secrets/pikvm.yaml ──
+    if grep -q '^sops:' secrets/pikvm.yaml; then
+        echo "  ⊘ secrets/pikvm.yaml — already encrypted, skipping"
+        echo "    To re-edit: just edit-secret pikvm.yaml"
+    else
+        # Replace placeholders in the plaintext template
+        if [ -n "$ts_key" ]; then
+            sed -i.bak "s|tskey-auth-REPLACE_WITH_YOUR_KEY|${ts_key}|" secrets/pikvm.yaml
+        else
+            echo "  ⚠ Tailscale key skipped — you'll need manual 'tailscale up' after boot"
+        fi
+
+        # Use | delimiter to avoid conflicts with $ in hash
+        sed -i.bak "s|\\\$6\\\$REPLACE_WITH_HASH|${root_hash}|" secrets/pikvm.yaml
+        sed -i.bak "s|REPLACE_WITH_PASSWORD|${kvmd_pw}|" secrets/pikvm.yaml
+        rm -f secrets/pikvm.yaml.bak
+
+        # Encrypt immediately
+        echo "  Encrypting secrets/pikvm.yaml..."
+        sops -e -i secrets/pikvm.yaml
+
+        # Verify roundtrip
+        if sops -d secrets/pikvm.yaml > /dev/null 2>&1; then
+            echo "  ✓ secrets/pikvm.yaml — encrypted and verified"
+        else
+            echo "  ✗ secrets/pikvm.yaml — encryption verification failed!"
+            exit 1
+        fi
+    fi
+
+    echo ""
+    echo "  Secrets bootstrap complete."
+    echo ""
+
+# Phase 2: Wire sops into NixOS modules (idempotent)
+setup-nix:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "━━━ NixOS Sops Wiring ━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    changed=0
+
+    # Check secrets.nix exists (created by this repo, not by this recipe)
+    if [ -f hosts/common/secrets.nix ]; then
+        echo "  ✓ hosts/common/secrets.nix exists"
+    else
+        echo "  ✗ hosts/common/secrets.nix missing — this shouldn't happen"
+        exit 1
+    fi
+
+    # Check flake.nix has secrets.nix in module list
+    if grep -q 'secrets.nix' flake.nix; then
+        echo "  ✓ flake.nix — secrets.nix in module list"
+    else
+        echo "  ✗ flake.nix — secrets.nix not in module list (add manually)"
+        exit 1
+    fi
+
+    # Check tailscale.nix has authKeyFile uncommented
+    if grep -q '# authKeyFile' hosts/common/tailscale.nix; then
+        echo "  ✗ tailscale.nix — authKeyFile still commented"
+        exit 1
+    elif grep -q 'authKeyFile = config.sops' hosts/common/tailscale.nix; then
+        echo "  ✓ tailscale.nix — authKeyFile wired to sops"
+    fi
+
+    # Check nut-server has sops refs
+    if grep -q '"/run/secrets/nut-password"' modules/nut-server/default.nix; then
+        echo "  ✗ nut-server — still using hardcoded placeholder path"
+        exit 1
+    elif grep -q 'config.sops.secrets.nut-password.path' modules/nut-server/default.nix; then
+        echo "  ✓ nut-server — password wired to sops"
+    fi
+
+    echo ""
+    echo "  All NixOS modules correctly wired."
+    echo ""
+    echo "  Validating flake outputs..."
+    nix flake show 2>&1 | grep -E '(nixosConfigurations|images|packages|deploy)' || true
+    echo ""
+
+# Show current setup progress
+setup-status:
+    #!/usr/bin/env bash
+    set -uo pipefail
+
+    echo "━━━ Setup Status ━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    status() {
+        local label="$1" check="$2"
+        if eval "$check" &>/dev/null; then
+            printf "  \033[32m✓\033[0m %s\n" "$label"
+        else
+            printf "  \033[31m✗\033[0m %s\n" "$label"
+        fi
+    }
+
+    echo "Phase 0 — Prerequisites:"
+    status "nix available"        "command -v nix"
+    status "sops available"       "command -v sops"
+    status "age key exists"       "test -f ~/.config/sops/age/keys.txt"
+    status "SSH key exists"       "test -f ~/.ssh/id_ed25519.pub || test -f ~/.ssh/id_rsa.pub"
+
+    echo ""
+    echo "Phase 1 — Secrets:"
+    status ".sops.yaml configured"       "! grep -q 'REPLACE_WITH_YOUR_AGE_PUBLIC_KEY' .sops.yaml"
+    status "users.nix SSH keys set"      "! grep -q 'AAAA_REPLACE_WITH_YOUR_KEY' hosts/common/users.nix"
+    status "preseed/authorized_keys"     "test -f hosts/pikvm-primary/preseed/authorized_keys && ! grep -q 'AAAA_REPLACE' hosts/pikvm-primary/preseed/authorized_keys"
+    status "secrets/pikvm.yaml encrypted" "grep -q '^sops:' secrets/pikvm.yaml"
+
+    echo ""
+    echo "Phase 2 — NixOS Wiring:"
+    status "secrets.nix exists"           "test -f hosts/common/secrets.nix"
+    status "flake.nix includes secrets"   "grep -q 'secrets.nix' flake.nix"
+    status "tailscale authKeyFile wired"  "grep -q 'authKeyFile = config.sops' hosts/common/tailscale.nix"
+    status "nut-server sops password"     "grep -q 'config.sops.secrets.nut-password.path' modules/nut-server/default.nix"
+
+    echo ""
+    echo "Phase 4 — Images:"
+    status "serial-console image built"   "test -d images/serial-console"
+
+    echo ""
+    echo "Phase 5 — Post-Boot:"
+    status "serial-console reachable"     "ssh -o ConnectTimeout=2 -o BatchMode=yes admin@\$(just _resolve-host serial-console) true 2>/dev/null"
+    status "pikvm-primary reachable"      "ssh -o ConnectTimeout=2 -o BatchMode=yes root@\$(just _resolve-host pikvm-primary) true 2>/dev/null"
+    status "Host age keys in .sops.yaml"  "! grep -q 'REPLACE_AFTER_FIRST_BOOT' .sops.yaml"
+    status "Serial devices mapped"        "! grep -q 'REPLACE_WITH_ACTUAL_ID' hosts/serial-console/default.nix"
+
+    echo ""
+    echo "Phase 6 — Validation:"
+    status "Health check passes"          "just health 2>/dev/null"
+    echo ""
+
+# Phase 5: Post-boot setup (requires running hardware)
+setup-post-boot:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "━━━ Post-Boot Setup ━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    serial_host=$(just _resolve-host serial-console)
+    pikvm_host=$(just _resolve-host pikvm-primary)
+
+    # ── Wait for SSH ──
+    echo "Waiting for hosts to come online..."
+    for host_label in "serial-console:${serial_host}:admin" "pikvm-primary:${pikvm_host}:root"; do
+        IFS=: read -r name addr user <<< "$host_label"
+        printf "  Waiting for %s (%s)... " "$name" "$addr"
+        for i in $(seq 1 20); do
+            if ssh -o ConnectTimeout=3 -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+                   "${user}@${addr}" true 2>/dev/null; then
+                printf "\033[32monline\033[0m\n"
+                break
+            fi
+            if [ "$i" -eq 20 ]; then
+                printf "\033[31mtimeout\033[0m\n"
+                echo "    Could not reach ${name}. Check network and try again."
+            fi
+            sleep 3
+        done
+    done
+
+    echo ""
+
+    # ── Capture host age keys ──
+    echo "Capturing host age keys..."
+    serial_age=$(ssh-keyscan -t ed25519 "${serial_host}" 2>/dev/null | ssh-to-age 2>/dev/null || echo "")
+    pikvm_age=""  # PiKVM doesn't need age key (Arch, not sops-nix managed)
+
+    if [ -n "$serial_age" ]; then
+        echo ""
+        echo "  serial-console age key:"
+        echo "    ${serial_age}"
+        echo ""
+        echo "  Add this to .sops.yaml by uncommenting and replacing line 11:"
+        echo "    - &serial_console ${serial_age}"
+        echo ""
+        echo "  Then run: just rekey-secrets"
+    else
+        echo "  ⚠ Could not capture serial-console host key"
+    fi
+
+    echo ""
+
+    # ── Discover serial devices ──
+    echo "Discovering USB serial devices on serial-console..."
+    echo ""
+    ssh "admin@${serial_host}" 'bash -s' < scripts/serial-discover.sh 2>/dev/null || {
+        echo "  ⚠ Could not run serial discovery. Run manually:"
+        echo "    just discover-serial"
+    }
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Remaining manual steps:"
+    echo "  1. Update .sops.yaml with host age key (shown above)"
+    echo "  2. Run: just rekey-secrets"
+    echo "  3. Update hosts/serial-console/default.nix with device IDs from discovery output"
+    echo "  4. Run: just deploy serial-console"
+    echo "  5. Run: just validate"
+    echo ""
+
+# Phase 6: End-to-end validation
+validate:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    pass=0; fail=0
+
+    check() {
+        local label="$1"
+        shift
+        if "$@" &>/dev/null; then
+            printf "  \033[32m✓\033[0m %s\n" "$label"
+            ((pass++))
+        else
+            printf "  \033[31m✗\033[0m %s\n" "$label"
+            ((fail++))
+        fi
+    }
+
+    echo "━━━ Validation ━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    serial_host=$(just _resolve-host serial-console)
+    pikvm_host=$(just _resolve-host pikvm-primary)
+
+    echo "Connectivity:"
+    check "SSH to serial-console" ssh -o ConnectTimeout=3 -o BatchMode=yes "admin@${serial_host}" true
+    check "SSH to pikvm-primary"  ssh -o ConnectTimeout=3 -o BatchMode=yes "root@${pikvm_host}" true
+
+    echo ""
+    echo "Tailscale:"
+    check "serial-console on Tailscale" ssh -o ConnectTimeout=3 -o BatchMode=yes "admin@${serial_host}" \
+          "tailscale status --json | grep -q serial-console"
+    check "pikvm-primary on Tailscale"  ssh -o ConnectTimeout=3 -o BatchMode=yes "root@${pikvm_host}" \
+          "tailscale status --json | grep -q pikvm-primary"
+
+    echo ""
+    echo "Services:"
+    check "ser2net running"   ssh -o ConnectTimeout=3 -o BatchMode=yes "admin@${serial_host}" \
+          "systemctl is-active ser2net"
+    check "NUT server running" ssh -o ConnectTimeout=3 -o BatchMode=yes "admin@${serial_host}" \
+          "systemctl is-active nut-server"
+    check "kvmd running"      ssh -o ConnectTimeout=3 -o BatchMode=yes "root@${pikvm_host}" \
+          "systemctl is-active kvmd"
+
+    echo ""
+    echo "TESmart KVM:"
+    check "TESmart reachable (TCP 5000)" bash -c "echo | nc -w 2 192.168.1.10 5000"
+    # Try to query current port if tesmart-ctl is available
+    if command -v tesmart-ctl &>/dev/null; then
+        port=$(tesmart-ctl get-port 2>/dev/null || echo "?")
+        echo "  Current KVM port: ${port}"
+    fi
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    printf "  \033[32m%d passed\033[0m" "$pass"
+    [ "$fail" -gt 0 ] && printf "  \033[31m%d failed\033[0m" "$fail"
+    echo ""
+    [ "$fail" -gt 0 ] && exit 1 || true
