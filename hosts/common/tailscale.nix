@@ -3,8 +3,7 @@
   services.tailscale = {
     enable = true;
     useRoutingFeatures = "server"; # Enable subnet routing capability
-    # Uncomment after setting up sops secrets:
-    # authKeyFile = config.sops.secrets.tailscale-auth-key.path;
+    authKeyFile = config.sops.secrets.tailscale-auth-key.path;
   };
 
   # Firewall rules for Tailscale

@@ -1,0 +1,10 @@
+# Secrets and local state
+.env
+.env.*
+.setup-backup/
+hosts/pikvm-primary/preseed/authorized_keys
+
+# Build artifacts
+images/
+result
+result-*

@@ -4,7 +4,7 @@
 
 keys:
   # Developer age keys (replace with your actual key)
-  - &admin age1REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
+  - &admin age1wc2s9pfju7haufdw0at0pm2cxx9rs9qmj80nf0nzy82w0fr0gp3skzfgds
 
   # Host keys (populated after first boot -- see docs/architecture.md)
   # Generate with: ssh-keyscan serial-console 2>/dev/null | ssh-to-age

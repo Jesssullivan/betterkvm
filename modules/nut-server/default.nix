@@ -26,9 +26,7 @@
 
     # NUT auth user for monitoring
     users.upsmon = {
-      # Replace with sops secret path after setup:
-      # passwordFile = config.sops.secrets.nut-password.path;
-      passwordFile = "/run/secrets/nut-password"; # placeholder
+      passwordFile = config.sops.secrets.nut-password.path;
       upsmon = "primary";
     };
 
@@ -38,7 +36,7 @@
         powerValue = 1;
         type = "primary";
         user = "upsmon";
-        passwordFile = "/run/secrets/nut-password";
+        passwordFile = config.sops.secrets.nut-password.path;
       };
       settings = {
         MINSUPPLIES = 1;

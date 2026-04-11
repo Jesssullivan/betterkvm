@@ -7,7 +7,7 @@ _: {
     ]; # dialout for serial ports
     openssh.authorizedKeys.keys = [
       # Replace with your SSH public key(s)
-      "ssh-ed25519 AAAA_REPLACE_WITH_YOUR_KEY admin@workstation"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP1Lk/BdxtbeZcnFZG3wrqtQi40iKw11vmFlsozQmd1t Jess's Gitlab Key"
     ];
   };
 
@@ -15,6 +15,6 @@ _: {
 
   # Disable root password login (SSH key only)
   users.users.root.openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAA_REPLACE_WITH_YOUR_KEY admin@workstation"
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP1Lk/BdxtbeZcnFZG3wrqtQi40iKw11vmFlsozQmd1t Jess's Gitlab Key"
   ];
 }

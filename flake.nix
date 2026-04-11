@@ -23,7 +23,7 @@
 
     sops-nix = {
       url = "github:Mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
   };
 
@@ -52,12 +52,14 @@
 
             # Secrets management
             sops-nix.nixosModules.sops
+            { sops.package = sops-nix.packages.aarch64-linux.sops-install-secrets; }
 
             # Shared modules
             ./hosts/common/base.nix
             ./hosts/common/users.nix
             ./hosts/common/tailscale.nix
             ./hosts/common/networking.nix
+            ./hosts/common/secrets.nix
 
             # Host identity
             { networking.hostName = hostname; }
@@ -128,6 +130,7 @@
           nixos-rebuild
           zstd
           gh
+          mkpasswd
         ];
       };
     };
