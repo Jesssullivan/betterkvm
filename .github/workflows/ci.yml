@@ -129,3 +129,11 @@ jobs:
           image=$(find result-image/ -name '*.img*' | head -1)
           echo "Image: ${image}"
           ls -lh "${image}"
+
+      - name: Upload SD image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: serial-console-sd-image
+          path: result-image/sd-image/*.img*
+          retention-days: 7
+          compression-level: 0

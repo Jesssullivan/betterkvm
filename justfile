@@ -28,15 +28,21 @@ flash host device:
 build-and-flash host device: (build-image host) (flash host device)
 
 # Download, flash, and preseed PiKVM OS image
-flash-pikvm device variant="v3-hdmi-rpi4-box":
+flash-pikvm device variant="v3-hdmi-rpi4" box="true":
     #!/usr/bin/env bash
     set -euo pipefail
-    img="images/pikvm-{{variant}}.img"
-    url="https://files.pikvm.org/images/{{variant}}/{{variant}}-aarch64-latest.img.xz"
-    if [ ! -f "${img}" ]; then
-        echo "Downloading PiKVM image..."
+    if [ "{{box}}" = "true" ]; then
+        suffix="-box"
+    else
+        suffix=""
+    fi
+    img="images/pikvm-{{variant}}${suffix}.img"
+    url="https://files.pikvm.org/images/{{variant}}/aarch64/{{variant}}-aarch64${suffix}-latest.img.xz"
+    if [ ! -f "${img}" ] || [ "$(stat -f%z "${img}" 2>/dev/null || stat -c%s "${img}" 2>/dev/null)" -lt 1000000 ]; then
+        echo "Downloading PiKVM image from ${url}..."
         mkdir -p images
-        curl -L "${url}" | xz -d > "${img}"
+        curl -fL --progress-bar "${url}" | xz -d > "${img}"
+        echo "Downloaded: $(ls -lh "${img}" | awk '{print $5}')"
     fi
     ./scripts/flash-sd.sh "${img}" {{device}}
     echo ""
