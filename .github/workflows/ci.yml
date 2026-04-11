@@ -58,6 +58,7 @@ jobs:
           platforms: arm64
 
       - name: Configure Attic cache
+        continue-on-error: true
         uses: ryanccn/attic-action@v0
         with:
           endpoint: ${{ vars.ATTIC_SERVER }}
@@ -80,6 +81,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
 
       - name: Configure Attic cache
+        continue-on-error: true
         uses: ryanccn/attic-action@v0
         with:
           endpoint: ${{ vars.ATTIC_SERVER }}
@@ -109,6 +111,7 @@ jobs:
           platforms: arm64
 
       - name: Configure Attic cache
+        continue-on-error: true
         uses: ryanccn/attic-action@v0
         with:
           endpoint: ${{ vars.ATTIC_SERVER }}
