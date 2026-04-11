@@ -152,6 +152,32 @@ download-image host version="latest":
     echo "Image ready: images/{{host}}.img"
     ls -lh "images/{{host}}.img"
 
+# Download SD image from latest CI run artifact
+download-ci-image host="serial-console":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p images/{{host}}
+    echo "Finding latest successful Build SD Image run..."
+    run_id=$(gh run list --workflow ci.yml --status success \
+        --json databaseId --jq '.[0].databaseId' 2>/dev/null) || true
+    if [ -z "${run_id}" ]; then
+        echo "No successful run found. Checking in-progress runs..."
+        run_id=$(gh run list --workflow ci.yml --status in_progress \
+            --json databaseId --jq '.[0].databaseId' 2>/dev/null) || true
+    fi
+    if [ -z "${run_id}" ]; then
+        echo "ERROR: No CI run found. Trigger with: gh workflow run ci.yml"
+        exit 1
+    fi
+    echo "Downloading artifact from run ${run_id}..."
+    gh run download "${run_id}" -n {{host}}-sd-image -D images/{{host}}/ || {
+        echo "ERROR: Artifact not found. The build may still be in progress."
+        echo "Check: gh run view ${run_id}"
+        exit 1
+    }
+    image=$(find images/{{host}}/ -name '*.img*' | head -1)
+    echo "Image ready: ${image} ($(ls -lh "${image}" | awk '{print $5}'))"
+
 # Download pre-built image and flash to SD card
 download-and-flash host device version="latest": (download-image host version)
     ./scripts/flash-sd.sh "images/{{host}}.img" {{device}}
