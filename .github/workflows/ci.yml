@@ -14,14 +14,16 @@ concurrency:
 permissions:
   contents: read
 
-# Switch to tinyland-nix when ARC runners are deployed
-env:
-  NIX_RUNNER: ubuntu-latest
-
 jobs:
   lint:
     name: Lint Nix
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - honey
+      - tinyland-nix
+      - nix
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +42,13 @@ jobs:
 
   check:
     name: Flake Check
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - honey
+      - tinyland-nix
+      - nix
     needs: lint
     steps:
       - name: Checkout
@@ -71,7 +79,13 @@ jobs:
 
   build-packages:
     name: Build Packages
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - honey
+      - tinyland-nix
+      - nix
     needs: lint
     steps:
       - name: Checkout
@@ -93,7 +107,13 @@ jobs:
 
   build-image:
     name: Build SD Image
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - honey
+      - tinyland-nix
+      - nix
     needs: lint
     steps:
       - name: Checkout
