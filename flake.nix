@@ -141,6 +141,7 @@
                   pbt-tesmart-protocol = pkgs.runCommand "pbt-tesmart-protocol" { buildInputs = [ pythonWithPkgs ]; } ''
                     mkdir -p $TMPDIR/work
                     cp -r --no-preserve=mode ${self}/packages/tesmart-ctl/* $TMPDIR/work/
+                    cp -r --no-preserve=mode ${self}/mcp $TMPDIR/work/mcp
                     cp -r --no-preserve=mode ${self}/tests $TMPDIR/work/tests
                     cp --no-preserve=mode ${self}/pyproject.toml $TMPDIR/work/
                     cd $TMPDIR/work
