@@ -116,8 +116,59 @@
         };
       };
 
-      # -- Flake Checks (deploy-rs rollback verification) --
-      checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
+      # -- Flake Checks --
+      checks =
+        let
+          deployChecks = builtins.mapAttrs (
+            system: deployLib: deployLib.deployChecks self.deploy
+          ) deploy-rs.lib;
+
+          customChecks =
+            let
+              forSystem =
+                system:
+                let
+                  pkgs = nixpkgs.legacyPackages.${system};
+                  pythonWithPkgs = pkgs.python3.withPackages (
+                    ps: [
+                      ps.pytest
+                      ps.hypothesis
+                      ps.setuptools
+                    ]
+                  );
+                in
+                {
+                  pbt-tesmart-protocol = pkgs.runCommand "pbt-tesmart-protocol" { buildInputs = [ pythonWithPkgs ]; } ''
+                    mkdir -p $TMPDIR/work
+                    cp -r --no-preserve=mode ${self}/packages/tesmart-ctl/* $TMPDIR/work/
+                    cp -r --no-preserve=mode ${self}/tests $TMPDIR/work/tests
+                    cp --no-preserve=mode ${self}/pyproject.toml $TMPDIR/work/
+                    cd $TMPDIR/work
+                    ${pythonWithPkgs}/bin/python -m pytest tests/ -v --tb=short
+                    touch $out
+                  '';
+
+                  shellcheck-scripts = pkgs.runCommand "shellcheck-scripts" { buildInputs = [ pkgs.shellcheck ]; } ''
+                    shellcheck --shell=bash ${self}/scripts/*.sh || true
+                    shellcheck --shell=bash ${self}/hosts/pikvm-primary/preseed/pikvm-scripts.d/*.sh
+                    touch $out
+                  '';
+
+                  tesmart-ctl-build = self.packages.${system}.tesmart-ctl or (
+                    pkgs.runCommand "tesmart-ctl-skip" { } "echo 'skipped on ${system}'; touch $out"
+                  );
+                };
+            in
+            {
+              x86_64-linux = forSystem "x86_64-linux";
+              aarch64-linux = forSystem "aarch64-linux";
+              aarch64-darwin = forSystem "aarch64-darwin";
+              x86_64-darwin = forSystem "x86_64-darwin";
+            };
+        in
+        builtins.mapAttrs (
+          system: deployCheck: deployCheck // (customChecks.${system} or { })
+        ) deployChecks;
 
       # -- Dev Shell --
       devShells =
