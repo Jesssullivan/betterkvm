@@ -351,6 +351,20 @@ nut-status:
     ssh "root@${target}" 'upsc rack-ups@localhost 2>/dev/null' || \
         echo "NUT unreachable. Is the serial-console Pi running?"
 
+# ─── Testing ──────────────────────────────────────────────────
+
+# Run the full PBT test suite
+test *args="":
+    nix develop --command python -m pytest tests/ {{args}}
+
+# Run PBT tests with verbose output
+test-verbose:
+    just test -v --tb=short
+
+# Run PBT tests with JUnit XML output (for CI)
+test-ci:
+    just test -v --junit-xml=test-results.xml
+
 # ─── Maintenance ─────────────────────────────────────────────
 
 # Update all flake inputs
