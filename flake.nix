@@ -132,6 +132,7 @@
                   pythonWithPkgs = pkgs.python3.withPackages (ps: [
                     ps.pytest
                     ps.hypothesis
+                    ps.pyyaml
                     ps.setuptools
                   ]);
                 in
@@ -182,6 +183,7 @@
                 ps.pytest
                 ps.pytest-cov
                 ps.hypothesis
+                ps.pyyaml
                 ps.setuptools
               ]);
             in
