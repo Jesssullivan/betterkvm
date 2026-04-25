@@ -27,6 +27,7 @@ import dataclasses
 import contextlib
 import argparse
 
+import typing
 from typing import Generator
 from typing import Any
 
@@ -52,6 +53,10 @@ from ._scheme import make_config_scheme
 from ._scheme import patch_dynamic
 from ._scheme import patch_raw
 
+if typing.TYPE_CHECKING:
+    from ..clients.kvmd import KvmdClient
+    from ..clients.streamer import HttpStreamerClient
+
 
 # =====
 @dataclasses.dataclass(frozen=True)
@@ -68,6 +73,24 @@ class InitAttrs:
     args:   list[str]
     config: Section
     cps:    ConfigPaths
+
+    def make_kvmd_client(self, user_agent: str) -> "KvmdClient":
+        from ..clients.kvmd import KvmdClient  # pylint: disable=import-outside-toplevel
+
+        return KvmdClient(
+            unix_path=self.config.kvmd.server.unix,
+            timeout=self.config.clients.kvmd.timeout,
+            user_agent=user_agent,
+        )
+
+    def make_streamer_client(self, user_agent: str) -> "HttpStreamerClient":
+        from ..clients.streamer import HttpStreamerClient  # pylint: disable=import-outside-toplevel
+
+        return HttpStreamerClient(
+            unix_path=self.config.kvmd.streamer.unix,
+            timeout=self.config.clients.streamer.http.timeout,
+            user_agent=user_agent,
+        )
 
 
 def init(

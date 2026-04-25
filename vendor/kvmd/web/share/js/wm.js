@@ -37,12 +37,18 @@ function __WindowManager() {
 
 	/************************************************************************/
 
-	var __catch_menu_esc = false;
-
 	var __init__ = function() {
 		for (let el of $$("menu-button")) {
-			el.parentElement.querySelector(".menu").tabIndex = -1;
+			let el_menu = el.parentElement;
+			el_menu.querySelector(".menu").tabIndex = -1;
 			tools.el.setOnDown(el, () => __toggleMenu(el));
+			el_menu.addEventListener("keyup", function(ev) {
+				if (ev.code === "Escape") {
+					ev.preventDefault();
+					__closeAllMenues();
+					__activateLastWindow();
+				}
+			});
 		}
 
 		for (let el_win of $$("window")) {
@@ -156,14 +162,6 @@ function __WindowManager() {
 					}
 				}
 			}, 100);
-		});
-
-		document.addEventListener("keyup", function(ev) {
-			if (__catch_menu_esc && ev.code === "Escape") {
-				ev.preventDefault();
-				__closeAllMenues();
-				__activateLastWindow();
-			}
 		});
 
 		document.addEventListener("fullscreenchange", function () {
@@ -408,12 +406,16 @@ function __WindowManager() {
 		//  - https://github.com/whatwg/fullscreen/issues/231
 		//  - https://bugzilla.mozilla.org/show_bug.cgi?id=700123
 		if (document.documentElement.requestFullscreen && !$$("window-full-tab").length) {
-			document.documentElement.requestFullscreen().then(function() {
+			let fs_lock = false;
+			let options = {
+				get keyboardLock() { fs_lock = true; return "browser"; }, // eslint-disable-line quote-props
+			};
+			document.documentElement.requestFullscreen(options).then(function() {
 				self.setFullTabWindow(el_win, true);
 				__activateWindow(el_win); // Почему-то теряется фокус
-				if (navigator.keyboard && navigator.keyboard.lock) {
+				if (!fs_lock && navigator.keyboard && navigator.keyboard.lock) {
 					navigator.keyboard.lock();
-				} else {
+				} else if (!fs_lock) {
 					setTimeout(function() {
 						let html = (
 							"Shortcuts like Alt+Tab and Ctrl+W might not be captured.<br>"
@@ -479,7 +481,6 @@ function __WindowManager() {
 		if (all_hidden) {
 			__activateLastWindow();
 		}
-		__catch_menu_esc = !all_hidden;
 	};
 
 	var __closeAllMenues = function() {
@@ -489,7 +490,6 @@ function __WindowManager() {
 			tools.hidden.setVisible(el_menu, false);
 			el_menu.style.removeProperty("right");
 		}
-		__catch_menu_esc = false;
 	};
 
 	var __focusInOut = function(el, focus_in) {

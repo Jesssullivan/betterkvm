@@ -83,6 +83,9 @@ class NbdHttpRemote(BaseNbdRemote):
 
     # =====
 
+    def get_timeout(self) -> float:
+        return self.__timeout
+
     async def _do_probe(self) -> NbdImage:
         async with self.__make_session() as session:
             return (await self.__probe(session))
@@ -98,9 +101,9 @@ class NbdHttpRemote(BaseNbdRemote):
             if not isinstance(cl, int) or cl < 0:
                 raise NbdRemoteError(f"Invalid Content-Length: {cl}")
             return NbdImage(
+                url=self.__url,
                 size=cl,
                 rw=False,
-                timeout=self.__timeout,
             )
 
     # =====
