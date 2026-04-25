@@ -39,7 +39,7 @@ for _variant in "${_variants[@]}"; do
 	pkgname+=(kvmd-platform-$_platform-$_board)
 done
 pkgbase=kvmd
-pkgver=4.150
+pkgver=4.165
 pkgrel=1
 pkgdesc="The main PiKVM daemon"
 url="https://github.com/pikvm/kvmd"
@@ -99,6 +99,9 @@ depends=(
 	raspberrypi-utils
 	"ustreamer>=6.47"
 
+	# Temporary for kvmd-nbd
+	nbd
+
 	# Systemd UDEV bug
 	"systemd>=248.3-2"
 
@@ -151,9 +154,7 @@ backup=(
 	etc/kvmd/{override,meta}.yaml
 	etc/kvmd/{ht,ipmi,vnc}passwd
 	etc/kvmd/totp.secret
-	etc/kvmd/nginx/{kvmd.ctx-{http,server},certbot.ctx-server}.conf
-	etc/kvmd/nginx/loc-{login,nocache,proxy,websocket,nobuffering,bigpost}.conf
-	etc/kvmd/nginx/{mime-types,ssl}.conf
+	etc/kvmd/nginx/ssl.conf
 	etc/kvmd/nginx/nginx.conf.mako
 	etc/kvmd/janus/janus{,.plugin.ustreamer,.transport.websockets}.jcfg
 	etc/kvmd/web.css
@@ -222,7 +223,7 @@ for _variant in "${_variants[@]}"; do
 		backup=()
 
 		pkgdesc=\"PiKVM platform configs - $_platform for $_board\"
-		depends=(kvmd=$pkgver-$pkgrel \"linux-rpi-pikvm>=6.12.56-5\" \"raspberrypi-bootloader-pikvm>=20251031-1\")
+		depends=(kvmd=$pkgver-$pkgrel \"linux-rpi-pikvm>=6.12.56-6\" \"raspberrypi-bootloader-pikvm>=20251031-1\")
 
 		if [[ $_base == v0 ]]; then
 			depends=(\"\${depends[@]}\" platformio-core avrdude make patch)

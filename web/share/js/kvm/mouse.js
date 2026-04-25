@@ -52,6 +52,10 @@ export function Mouse(__getGeometry, __recordWsEvent) {
 			$("hid-mouse-sens-value").innerText = value.toFixed(1);
 		});
 
+		tools.storage.bindSimpleSlider($("hid-mouse-boost-slider"), "hid.mouse.boost", 1, 10, 1, 1, function (value) {
+			$("hid-mouse-boost-value").innerText = "x" + value;
+		});
+
 		tools.storage.bindSimpleSlider($("hid-mouse-scroll-slider"), "hid.mouse.scroll_rate", 1, 25, 1, 5, function (value) {
 			$("hid-mouse-scroll-value").innerText = value;
 		});
@@ -69,7 +73,9 @@ export function Mouse(__getGeometry, __recordWsEvent) {
 
 		$("stream-box").addEventListener("contextmenu", (ev) => ev.preventDefault());
 		$("stream-box").addEventListener("mouseenter", __updateOnlineLeds);
+		$("stream-box").addEventListener("mouseenter", __enterButtonsHandler);
 		$("stream-box").addEventListener("mouseleave", __updateOnlineLeds);
+		$("stream-box").addEventListener("mouseleave", __leaveButtonsHandler);
 		$("stream-box").addEventListener("mousedown", (ev) => __streamButtonHandler(ev, true));
 		$("stream-box").addEventListener("mouseup", (ev) => __streamButtonHandler(ev, false));
 		$("stream-box").addEventListener("mousemove", __streamMoveHandler);
@@ -118,6 +124,20 @@ export function Mouse(__getGeometry, __recordWsEvent) {
 
 	self.releaseAll = function() {
 		__keypad.releaseAll();
+	};
+
+	var __leave_buttons = 0;
+
+	var __leaveButtonsHandler = function(ev) {
+		// https://github.com/pikvm/pikvm/issues/1653
+		__leave_buttons = ev.buttons;
+	};
+
+	var __enterButtonsHandler = function(ev) {
+		if (ev.buttons !== __leave_buttons) {
+			self.releaseAll();
+		}
+		__leave_buttons = 0;
 	};
 
 	var __updateOnlineLeds = function() {
@@ -302,9 +322,10 @@ export function Mouse(__getGeometry, __recordWsEvent) {
 
 	var __sendOrPlanRelativeMove = function(delta) {
 		let sens = $("hid-mouse-sens-slider").valueAsNumber;
+		let boost = $("hid-mouse-boost-slider").valueAsNumber;
 		delta = {
-			"x": Math.min(Math.max(-127, Math.floor(delta.x * sens)), 127),
-			"y": Math.min(Math.max(-127, Math.floor(delta.y * sens)), 127),
+			"x": Math.min(Math.max(-127, Math.floor(delta.x * sens * boost)), 127),
+			"y": Math.min(Math.max(-127, Math.floor(delta.y * sens * boost)), 127),
 		};
 		if (delta.x || delta.y) {
 			if ($("hid-mouse-squash-switch").checked) {

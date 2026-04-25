@@ -21,7 +21,8 @@
 
 
 import os
-import asyncio
+import subprocess
+import dataclasses
 
 from aiohttp.web import Request
 from aiohttp.web import Response
@@ -31,8 +32,7 @@ from ...logging import get_logger
 
 from ... import tools
 from ... import aiotools
-from ... import aiohelpers
-from ... import fstab
+from ... import aioproc
 
 from ...htserver import exposed_http
 from ...htserver import exposed_ws
@@ -40,36 +40,46 @@ from ...htserver import make_json_response
 from ...htserver import WsSession
 from ...htserver import HttpServer
 
+from ...nbd import NbdController
+
 
 # =====
-class PstServer(HttpServer):  # pylint: disable=too-many-arguments,too-many-instance-attributes
-    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+class NbdServer(HttpServer):
+    __EV_REMOTES = "remotes"
+    __EV_NBD = "nbd"
+
+    def __init__(
         self,
-        ro_retries_delay: float,
-        ro_cleanup_delay: float,
-        remount_cmd: list[str],
+        device_path: str,
+        disconnect_cmd: list[str],
     ) -> None:
 
         super().__init__()
 
-        self.__data_path = fstab.find_pst().root_path
-        self.__ro_retries_delay = ro_retries_delay
-        self.__ro_cleanup_delay = ro_cleanup_delay
-        self.__remount_cmd = remount_cmd
+        self.__device_path = device_path
+        self.__disconnect_cmd = disconnect_cmd
 
-        self.__notifier = aiotools.AioNotifier()
+        self.__ctl = NbdController(device_path)
 
     # ===== HTTP
 
     @exposed_http("GET", "/state")
     async def __state_handler(self, _: Request) -> Response:
-        return make_json_response({
-            "clients": len(self._get_wss()),
-            "data": {
-                "path": self.__data_path,
-                "write_allowed": self.__is_write_available(),
-            },
-        })
+        return make_json_response(dataclasses.asdict(self.__ctl.get_state()))
+
+    @exposed_http("GET", "/remotes")
+    async def __remotes_handler(self, _: Request) -> Response:
+        return make_json_response(self.__ctl.get_remotes())
+
+    @exposed_http("POST", "/bind")
+    async def __bind_handler(self, req: Request) -> Response:
+        await self.__ctl.bind(**dict(req.query))
+        return make_json_response({})
+
+    @exposed_http("POST", "/unbind")
+    async def __unbind_handler(self, _: Request) -> Response:
+        self.__ctl.unbind()
+        return make_json_response({})
 
     # ===== WEBSOCKET
 
@@ -77,6 +87,8 @@ class PstServer(HttpServer):  # pylint: disable=too-many-arguments,too-many-inst
     async def __ws_handler(self, req: Request) -> WebSocketResponse:
         async with self._ws_session(req) as ws:
             await ws.send_event("loop", {})
+            await ws.send_event(self.__EV_REMOTES, self.__ctl.get_remotes())
+            await ws.send_event(self.__EV_NBD, dataclasses.asdict(self.__ctl.get_state()))
             return (await self._ws_loop(ws))
 
     @exposed_ws("ping")
@@ -86,8 +98,7 @@ class PstServer(HttpServer):  # pylint: disable=too-many-arguments,too-many-inst
     # ===== SYSTEM STUFF
 
     async def _init_app(self) -> None:
-        if (await self.__remount_storage(rw=True)):
-            await self.__remount_storage(rw=False)
+        await self.__force_disconnect()
         aiotools.create_deadly_task("Controller", self.__controller())
         self._add_exposed(self)
 
@@ -95,57 +106,34 @@ class PstServer(HttpServer):  # pylint: disable=too-many-arguments,too-many-inst
         logger = get_logger(0)
         logger.info("Stopping system tasks ...")
         await aiotools.stop_all_deadly_tasks()
-        logger.info("Disconnecting clients ...")
-        await self.__broadcast_storage_state(len(self._get_wss()), False)
-        if (await self._close_all_wss()):
-            await asyncio.sleep(self.__ro_cleanup_delay)
         logger.info("On-Shutdown complete")
 
     async def _on_cleanup(self) -> None:
         logger = get_logger(0)
-        await self.__remount_storage(rw=False)
+        await self.__force_disconnect()
         logger.info("On-Cleanup complete")
-
-    def _on_ws_added(self, _: WsSession) -> None:
-        self.__notifier.notify()
-
-    def _on_ws_removed(self, _: WsSession) -> None:
-        self.__notifier.notify()
 
     # ===== SYSTEM TASKS
 
     async def __controller(self) -> None:
-        prev: int = 0
-        while True:
-            cur = len(self._get_wss())
-            if cur > 0:
-                if not self.__is_write_available():
-                    await self.__remount_storage(rw=True)
-            elif prev > 0 and cur == 0:
-                while not (await self.__remount_storage(rw=False)):
-                    if len(self._get_wss()) > 0:
-                        continue
-                    await asyncio.sleep(self.__ro_retries_delay)
-            await self.__broadcast_storage_state(cur, self.__is_write_available())
-            prev = cur
-            await self.__notifier.wait()
+        logger = get_logger(0)
+        async for (event, state) in self.__ctl.poll_state():
+            logger.info("NBD-EVENT: %s", event)
+            await self._broadcast_ws_event(self.__EV_NBD, dataclasses.asdict(state))
 
-    async def __broadcast_storage_state(self, clients: int, write_allowed: bool) -> None:
-        await self._broadcast_ws_event("storage", {
-            "clients": clients,
-            "data": {
-                "path": self.__data_path,
-                "write_allowed": write_allowed,
-            },
-        })
-
-    def __is_write_available(self) -> bool:
+    async def __force_disconnect(self) -> bool:
+        logger = get_logger()
+        cmd = [
+            part.format(device=os.path.realpath(self.__device_path))
+            for part in self.__disconnect_cmd
+        ]
+        logger.info("Forced disconnecting NBD %s: %s", self.__device_path, tools.cmdfmt(cmd))
         try:
-            return (not (os.statvfs(self.__data_path).f_flag & os.ST_RDONLY))
+            proc = await aioproc.log_process(cmd, logger)
+            if proc.returncode != 0:
+                assert proc.returncode is not None
+                raise subprocess.CalledProcessError(proc.returncode, cmd)
         except Exception as ex:
-            get_logger(0).info("Can't get filesystem state of PST (%s): %s",
-                               self.__data_path, tools.efmt(ex))
+            logger.error("Can't forcibly disconnect NBD: %s", tools.efmt(ex))
             return False
-
-    async def __remount_storage(self, rw: bool) -> bool:
-        return (await aiohelpers.remount("PST", self.__remount_cmd, rw))
+        return True

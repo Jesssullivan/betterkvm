@@ -56,7 +56,7 @@ def main() -> None:
 
     setup(
         name="kvmd",
-        version="4.150",
+        version="4.165",
         url="https://github.com/pikvm/kvmd",
         license="GPLv3",
         author="Maxim Devaev",
@@ -69,8 +69,6 @@ def main() -> None:
             "kvmd.validators",
             "kvmd.yamlconf",
             "kvmd.keyboard",
-            "kvmd.nbd",
-            "kvmd.nbd.remotes",
             "kvmd.plugins",
             "kvmd.plugins.auth",
             "kvmd.plugins.hid",
@@ -83,6 +81,8 @@ def main() -> None:
             "kvmd.plugins.msd.otg",
             "kvmd.plugins.ugpio",
             "kvmd.clients",
+            "kvmd.nbd",
+            "kvmd.nbd.remotes",
             "kvmd.apps",
             "kvmd.apps.kvmd",
             "kvmd.apps.kvmd.streamer",
@@ -126,6 +126,7 @@ def main() -> None:
             "console_scripts": [
                 "kvmd = kvmd.apps.kvmd:main",
                 "kvmd-media = kvmd.apps.media:main",
+                "kvmd-nbd = kvmd.apps.nbd:main",
                 "kvmd-pst = kvmd.apps.pst:main",
                 "kvmd-pstrun = kvmd.apps.pstrun:main",
                 "kvmd-otg = kvmd.apps.otg:main",

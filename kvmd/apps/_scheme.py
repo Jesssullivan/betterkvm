@@ -263,6 +263,17 @@ def patch_dynamic(  # pylint: disable=too-many-locals
 
 def make_config_scheme() -> dict:
     return {
+        "clients": {
+            "kvmd": {
+                "timeout": Option(5.0, type=valid_float_f01),
+            },
+            "streamer": {
+                "http": {
+                    "timeout": Option(5.0, type=valid_float_f01),
+                },
+            },
+        },
+
         "kvmd": {
             "server": {
                 "unix":              Option("/run/kvmd/kvmd.sock", type=valid_abs_path, unpack_as="unix_path"),
@@ -277,6 +288,8 @@ def make_config_scheme() -> dict:
                 "enabled": Option(True, type=valid_bool),
                 "expire":  Option(0,    type=valid_expire),
                 "extend":  Option(False, type=valid_bool),
+
+                "allow_redirects": Option(["/", "/kvm", "/kvm/"], type=valid_string_list),
 
                 "usc": {
                     "users":       Option([], type=valid_users_list),  # PiKVM username has a same regex as a UNIX username
@@ -640,16 +653,25 @@ def make_config_scheme() -> dict:
             },
         },
 
+        "nbd": {
+            "server": {
+                "unix":              Option("/run/kvmd/nbd.sock", type=valid_abs_path, unpack_as="unix_path"),
+                "unix_rm":           Option(True,  type=valid_bool),
+                "unix_mode":         Option(0o660, type=valid_unix_mode, hint=Hint.OCT),
+                "heartbeat":         Option(15.0,  type=valid_float_f01),
+                "access_log_format": Option("[%P / %{X-Real-IP}i] '%r' => %s; size=%b ---"
+                                            " referer='%{Referer}i'; user_agent='%{User-Agent}i'"),
+            },
+
+            "device":         Option("/dev/kvmd-nbd", type=valid_abs_path, unpack_as="device_path"),
+            "disconnect_cmd": Option(["/usr/bin/nbd-client", "-d", "{device}"], type=valid_command),
+        },
+
         "ipmi": {
             "server": {
                 "host":    Option("",   type=valid_ip_or_host, if_empty=""),
                 "port":    Option(623,  type=valid_port),
                 "timeout": Option(10.0, type=valid_float_f01),
-            },
-
-            "kvmd": {
-                "unix":    Option("/run/kvmd/kvmd.sock", type=valid_abs_path, unpack_as="unix_path"),
-                "timeout": Option(5.0, type=valid_float_f01),
             },
 
             "auth": {
@@ -693,16 +715,6 @@ def make_config_scheme() -> dict:
                 },
             },
 
-            "kvmd": {
-                "unix":    Option("/run/kvmd/kvmd.sock", type=valid_abs_path, unpack_as="unix_path"),
-                "timeout": Option(5.0, type=valid_float_f01),
-            },
-
-            "streamer": {
-                "unix":    Option("/run/kvmd/ustreamer.sock", type=valid_abs_path, unpack_as="unix_path"),
-                "timeout": Option(5.0, type=valid_float_f01),
-            },
-
             "memsink": {
                 "jpeg": {
                     "sink":             Option("",  unpack_as="obj"),
@@ -726,13 +738,6 @@ def make_config_scheme() -> dict:
                 "vencrypt": {
                     "enabled": Option(True, type=valid_bool, unpack_as="vencrypt_enabled"),
                 },
-            },
-        },
-
-        "localhid": {
-            "kvmd": {
-                "unix":    Option("/run/kvmd/kvmd.sock", type=valid_abs_path, unpack_as="unix_path"),
-                "timeout": Option(5.0, type=valid_float_f01),
             },
         },
 
@@ -792,11 +797,6 @@ def make_config_scheme() -> dict:
             "contrast": {
                 "low":    Option(1,  type=valid_number.mk(min=0, max=255)),
                 "normal": Option(64, type=valid_number.mk(min=0, max=255)),
-            },
-
-            "kvmd": {
-                "unix":    Option("/run/kvmd/kvmd.sock", type=valid_abs_path, unpack_as="unix_path"),
-                "timeout": Option(5.0, type=valid_float_f01),
             },
         },
     }
