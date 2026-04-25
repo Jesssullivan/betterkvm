@@ -3,6 +3,7 @@
 
   # Attic binary cache — CI pushes all derivations here.
   # Local builds automatically pull cached artifacts from CI.
+  # Attic is behind Tailscale; substituter is best-effort (fails open).
   nixConfig = {
     extra-substituters = [ "https://nix-cache.fuzzy-dev.tinyland.dev/main" ];
     extra-trusted-public-keys = [ "main:NKRk1XYo/dfd9fcDqgotUJg2DTDHWp5ny+Ba7WzRjgE=" ];
@@ -119,19 +120,44 @@
       checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
 
       # -- Dev Shell --
-      devShells.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.mkShell {
-        buildInputs = with nixpkgs.legacyPackages.x86_64-linux; [
-          just
-          python3
-          deploy-rs.packages.x86_64-linux.default
-          sops
-          age
-          ssh-to-age
-          nixos-rebuild
-          zstd
-          gh
-          mkpasswd
-        ];
-      };
+      devShells =
+        let
+          mkDevShell =
+            system:
+            let
+              pkgs = nixpkgs.legacyPackages.${system};
+              pythonWithPkgs = pkgs.python3.withPackages (
+                ps: [
+                  ps.pytest
+                  ps.hypothesis
+                  ps.setuptools
+                ]
+              );
+            in
+            pkgs.mkShell {
+              buildInputs =
+                with pkgs;
+                [
+                  just
+                  pythonWithPkgs
+                  sops
+                  age
+                  ssh-to-age
+                  zstd
+                  gh
+                  mkpasswd
+                ]
+                ++ pkgs.lib.optionals (system == "x86_64-linux") [
+                  deploy-rs.packages.${system}.default
+                  pkgs.nixos-rebuild
+                ];
+            };
+        in
+        {
+          x86_64-linux.default = mkDevShell "x86_64-linux";
+          aarch64-linux.default = mkDevShell "aarch64-linux";
+          aarch64-darwin.default = mkDevShell "aarch64-darwin";
+          x86_64-darwin.default = mkDevShell "x86_64-darwin";
+        };
     };
 }

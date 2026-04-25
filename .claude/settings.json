@@ -1,0 +1,50 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Bash(just --list*)",
+      "Bash(just status*)",
+      "Bash(just health*)",
+      "Bash(just lint*)",
+      "Bash(just check*)",
+      "Bash(just fmt*)",
+      "Bash(nix flake check*)",
+      "Bash(nix flake show*)",
+      "Bash(nix build*)",
+      "Bash(nix eval*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git show*)",
+      "Bash(python -m pytest*)",
+      "Bash(python -m hypothesis*)",
+      "Bash(statix*)",
+      "Bash(deadnix*)",
+      "Bash(nixfmt*)",
+      "Bash(sops --decrypt*)",
+      "Bash(gh *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(find *)",
+      "Bash(which *)",
+      "Bash(file *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(just deploy*)",
+      "Bash(just flash*)",
+      "Bash(just preseed*)",
+      "Bash(just rekey*)"
+    ]
+  }
+}

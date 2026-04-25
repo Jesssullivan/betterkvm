@@ -17,11 +17,17 @@ if [ ! -f "$AUTHKEY_FILE" ]; then
     exit 0
 fi
 
-authkey=$(cat "$AUTHKEY_FILE")
+secure_delete() {
+    local f="$1"
+    if [ -f "$f" ]; then
+        dd if=/dev/urandom of="$f" bs=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f") count=1 conv=notrunc 2>/dev/null || true
+        sync
+        rm -f "$f"
+    fi
+}
 
-# Always delete the auth key, even if tailscale up fails
-cleanup() { rm -f "$AUTHKEY_FILE"; }
-trap cleanup EXIT
+# Always securely delete the auth key, even if tailscale up fails
+trap 'secure_delete "$AUTHKEY_FILE"' EXIT
 
 # Install tailscale if not already present
 if ! command -v tailscale &>/dev/null; then
@@ -37,11 +43,11 @@ fi
 
 systemctl enable --now tailscaled
 
-# Authenticate — retry once after a short delay if tailscaled is still starting
-tailscale up --authkey="$authkey" --hostname=pikvm-primary || {
+# Authenticate via file descriptor to avoid exposing authkey in process table
+tailscale up --authkey="file:$AUTHKEY_FILE" --hostname=pikvm-primary || {
     echo "[04-tailscale] Retrying after 5s..."
     sleep 5
-    tailscale up --authkey="$authkey" --hostname=pikvm-primary
+    tailscale up --authkey="file:$AUTHKEY_FILE" --hostname=pikvm-primary
 }
 
 echo "[04-tailscale] Tailscale authenticated as pikvm-primary"

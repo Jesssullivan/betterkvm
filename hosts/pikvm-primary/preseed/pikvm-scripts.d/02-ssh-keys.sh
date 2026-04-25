@@ -16,4 +16,7 @@ chmod 700 /root/.ssh
 chmod 600 /root/.ssh/authorized_keys
 chown -R root:root /root/.ssh
 
-echo "[02-ssh-keys] SSH authorized_keys installed"
+# Remove from boot partition after installation
+rm -f "$KEYS_FILE"
+
+echo "[02-ssh-keys] SSH authorized_keys installed and removed from boot"
