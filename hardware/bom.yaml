@@ -1,0 +1,205 @@
+# BetterKVM Bill of Materials
+# Machine-parseable hardware inventory for the 16-port multiarch KVM lab.
+# Prices in USD, last updated 2026-04-24.
+
+phases:
+  - name: "Phase 1: Core KVM + Serial Console"
+    target_cost: 592
+    items:
+      - id: 1
+        name: "Raspberry Pi 4 Model B 2GB"
+        quantity: 2
+        unit_price: 55.00
+        total: 110.00
+        vendor: "raspberrypi.com"
+        url: "https://www.raspberrypi.com/products/raspberry-pi-4-model-b/"
+        role: "pikvm-primary, serial-console"
+
+      - id: 2
+        name: "Geekworm KVM-A3 HAT (PiKVM)"
+        quantity: 1
+        unit_price: 80.00
+        total: 80.00
+        vendor: "geekworm.com"
+        url: "https://geekworm.com/products/pikvm-a3"
+        role: "HDMI capture + HID control for pikvm-primary"
+
+      - id: 3
+        name: "TESmart HKS1601A1U (16-port HDMI+USB KVM)"
+        quantity: 1
+        unit_price: 350.00
+        total: 350.00
+        vendor: "tesmart.com"
+        url: "https://www.tesmart.com"
+        role: "16-port KVM switch, TCP:5000 + RS232 control"
+        protocol: "docs/tesmart-protocol.md"
+
+      - id: 4
+        name: "Samsung EVO Plus 64GB microSD"
+        quantity: 1
+        unit_price: 10.00
+        total: 10.00
+        vendor: "Amazon"
+        role: "PiKVM OS boot media"
+
+      - id: 5
+        name: "Samsung PRO Endurance 128GB microSD"
+        quantity: 1
+        unit_price: 18.00
+        total: 18.00
+        vendor: "Amazon"
+        role: "NixOS serial-console boot media (high endurance)"
+
+      - id: 6
+        name: "Cat6 patch cables 1ft (5-pack)"
+        quantity: 1
+        unit_price: 10.00
+        total: 10.00
+        vendor: "Amazon"
+        role: "Lab LAN interconnect"
+
+      - id: 7
+        name: "HDMI cable 1ft"
+        quantity: 1
+        unit_price: 7.00
+        total: 7.00
+        vendor: "Amazon"
+        role: "TESmart → KVM-A3 HDMI capture input"
+
+      - id: 8
+        name: "Velcro cable ties (50-pack)"
+        quantity: 1
+        unit_price: 7.00
+        total: 7.00
+        vendor: "Amazon"
+        role: "Cable management"
+
+  - name: "Phase 2: Serial Console + Power"
+    target_cost: 275
+    items:
+      - id: 9
+        name: "Gearmo 4-port FTDI USB Serial"
+        quantity: 1
+        unit_price: 70.00
+        total: 70.00
+        vendor: "Amazon"
+        url: "https://www.amazon.com/Gearmo-Serial-Windows-Certified-Drivers/dp/B004ETDC8K"
+        role: "Primary serial console aggregation (4 FTDI ports)"
+
+      - id: 10
+        name: "DTECH FTDI 3.3V USB-TTL adapters"
+        quantity: 4
+        unit_price: 10.00
+        total: 40.00
+        vendor: "Amazon"
+        url: "https://us.amazon.com/DTECH-Adapter-Compatible-Windows-Genuine/dp/B0D97W4YDL"
+        role: "Additional serial ports (ch340/FTDI, 3.3V TTL)"
+
+      - id: 11
+        name: "USB-RS232 adapter"
+        quantity: 1
+        unit_price: 15.00
+        total: 15.00
+        vendor: "Amazon"
+        role: "TESmart RS232 DB9 backup control path"
+
+      - id: 12
+        name: "APC AP7900 PDU (8-outlet, used)"
+        quantity: 1
+        unit_price: 150.00
+        total: 150.00
+        vendor: "eBay"
+        role: "Per-outlet power control + NUT UPS monitoring"
+
+  - name: "Phase 3: ATX + Networking Polish"
+    target_cost: 140
+    items:
+      - id: 13
+        name: "Geekworm X630-A5 RJ45-ATX cable"
+        quantity: 1
+        unit_price: 10.00
+        total: 10.00
+        vendor: "geekworm.com"
+        url: "https://geekworm.com"
+        role: "PiKVM A3 GPIO → bumble ATX front-panel control"
+        schematic: "hardware/schematics/atx-wiring.md"
+
+      - id: 14
+        name: "PoE+ HAT for Raspberry Pi"
+        quantity: 2
+        unit_price: 20.00
+        total: 40.00
+        vendor: "raspberrypi.com"
+        url: "https://www.raspberrypi.com/products/poe-plus-hat/"
+        role: "Power both Pis via PoE (single cable per Pi)"
+
+      - id: 15
+        name: "TP-Link TL-SG108PE PoE switch"
+        quantity: 1
+        unit_price: 70.00
+        total: 70.00
+        vendor: "Amazon"
+        url: "https://www.amazon.com/TP-Link-TL-SG108PE/"
+        role: "PoE + managed switch for lab management VLAN"
+
+      - id: 16
+        name: "Cable labels (Brother TZe tape)"
+        quantity: 1
+        unit_price: 15.00
+        total: 15.00
+        vendor: "Amazon"
+        role: "Port and cable labeling"
+
+      - id: 17
+        name: "1U rack shelf (3D printed)"
+        quantity: 1
+        unit_price: 5.00
+        total: 5.00
+        vendor: "Printables"
+        url: "https://www.printables.com/model/69176"
+        role: "Rack mount for 2x Pi 4 + KVM-A3 HAT"
+
+optional:
+  - name: "HDMI EDID emulator dongles (16x)"
+    unit_price: 5.00
+    quantity: 16
+    total: 80.00
+    note: "Backup if HKS1601A1U EDID fails"
+
+  - name: "USB Ethernet adapter (2nd NIC)"
+    unit_price: 15.00
+    quantity: 1
+    total: 15.00
+    note: "If VLANs insufficient for management network"
+
+  - name: "Raspberry Pi 5 4GB"
+    unit_price: 85.00
+    quantity: 1
+    total: 85.00
+    note: "Optional 3rd Pi for monitoring node"
+
+  - name: "Digi CM16 (used, 16-port serial)"
+    unit_price: 150.00
+    quantity: 1
+    total: 150.00
+    note: "Enterprise serial console upgrade"
+
+  - name: "Additional USB-TTL adapters (4x)"
+    unit_price: 10.00
+    quantity: 4
+    total: 40.00
+    note: "Remaining serial ports coverage"
+
+  - name: "Sipeed NanoKVM-USB"
+    unit_price: 40.00
+    quantity: 2
+    total: 80.00
+    note: "Bench debug tool (ADR-001: not a PiKVM replacement)"
+
+totals:
+  phase_1: 592
+  phase_2: 275
+  phase_3: 140
+  grand_total: 1007
+  comparable_prebuilt: 1400
+  savings_pct: 28
