@@ -129,25 +129,25 @@
                 system:
                 let
                   pkgs = nixpkgs.legacyPackages.${system};
-                  pythonWithPkgs = pkgs.python3.withPackages (
-                    ps: [
-                      ps.pytest
-                      ps.hypothesis
-                      ps.setuptools
-                    ]
-                  );
+                  pythonWithPkgs = pkgs.python3.withPackages (ps: [
+                    ps.pytest
+                    ps.hypothesis
+                    ps.setuptools
+                  ]);
                 in
                 {
-                  pbt-tesmart-protocol = pkgs.runCommand "pbt-tesmart-protocol" { buildInputs = [ pythonWithPkgs ]; } ''
-                    mkdir -p $TMPDIR/work
-                    cp -r --no-preserve=mode ${self}/packages/tesmart-ctl/* $TMPDIR/work/
-                    cp -r --no-preserve=mode ${self}/mcp $TMPDIR/work/mcp
-                    cp -r --no-preserve=mode ${self}/tests $TMPDIR/work/tests
-                    cp --no-preserve=mode ${self}/pyproject.toml $TMPDIR/work/
-                    cd $TMPDIR/work
-                    ${pythonWithPkgs}/bin/python -m pytest tests/ -v --tb=short
-                    touch $out
-                  '';
+                  pbt-tesmart-protocol =
+                    pkgs.runCommand "pbt-tesmart-protocol" { buildInputs = [ pythonWithPkgs ]; }
+                      ''
+                        mkdir -p $TMPDIR/work
+                        cp -r --no-preserve=mode ${self}/packages/tesmart-ctl/* $TMPDIR/work/
+                        cp -r --no-preserve=mode ${self}/mcp $TMPDIR/work/mcp
+                        cp -r --no-preserve=mode ${self}/tests $TMPDIR/work/tests
+                        cp --no-preserve=mode ${self}/pyproject.toml $TMPDIR/work/
+                        cd $TMPDIR/work
+                        ${pythonWithPkgs}/bin/python -m pytest tests/ -v --tb=short
+                        touch $out
+                      '';
 
                   shellcheck-scripts = pkgs.runCommand "shellcheck-scripts" { buildInputs = [ pkgs.shellcheck ]; } ''
                     shellcheck --shell=bash ${self}/scripts/*.sh || true
@@ -155,9 +155,9 @@
                     touch $out
                   '';
 
-                  tesmart-ctl-build = self.packages.${system}.tesmart-ctl or (
-                    pkgs.runCommand "tesmart-ctl-skip" { } "echo 'skipped on ${system}'; touch $out"
-                  );
+                  tesmart-ctl-build =
+                    self.packages.${system}.tesmart-ctl
+                      or (pkgs.runCommand "tesmart-ctl-skip" { } "echo 'skipped on ${system}'; touch $out");
                 };
             in
             {
@@ -178,13 +178,11 @@
             system:
             let
               pkgs = nixpkgs.legacyPackages.${system};
-              pythonWithPkgs = pkgs.python3.withPackages (
-                ps: [
-                  ps.pytest
-                  ps.hypothesis
-                  ps.setuptools
-                ]
-              );
+              pythonWithPkgs = pkgs.python3.withPackages (ps: [
+                ps.pytest
+                ps.hypothesis
+                ps.setuptools
+              ]);
             in
             pkgs.mkShell {
               buildInputs =
