@@ -144,6 +144,7 @@
                         cp -r --no-preserve=mode ${self}/packages/tesmart-ctl/* $TMPDIR/work/
                         cp -r --no-preserve=mode ${self}/mcp $TMPDIR/work/mcp
                         cp -r --no-preserve=mode ${self}/tests $TMPDIR/work/tests
+                        cp -r --no-preserve=mode ${self}/hosts $TMPDIR/work/hosts
                         cp --no-preserve=mode ${self}/pyproject.toml $TMPDIR/work/
                         cd $TMPDIR/work
                         ${pythonWithPkgs}/bin/python -m pytest tests/ -v --tb=short -o "addopts="
