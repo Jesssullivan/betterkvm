@@ -146,7 +146,7 @@
                         cp -r --no-preserve=mode ${self}/tests $TMPDIR/work/tests
                         cp --no-preserve=mode ${self}/pyproject.toml $TMPDIR/work/
                         cd $TMPDIR/work
-                        ${pythonWithPkgs}/bin/python -m pytest tests/ -v --tb=short
+                        ${pythonWithPkgs}/bin/python -m pytest tests/ -v --tb=short -o "addopts="
                         touch $out
                       '';
 
