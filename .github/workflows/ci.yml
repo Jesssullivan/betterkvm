@@ -80,10 +80,8 @@ jobs:
           token: ${{ secrets.ATTIC_TOKEN }}
           skip-push: true
 
-      - name: Flake check (x86_64-linux only)
+      - name: Flake checks (x86_64-linux, skip deploy checks that need aarch64)
         run: |
-          nix build .#checks.x86_64-linux.deploy-activate --print-build-logs
-          nix build .#checks.x86_64-linux.deploy-schema --print-build-logs
           nix build .#checks.x86_64-linux.pbt-tesmart-protocol --print-build-logs
           nix build .#checks.x86_64-linux.shellcheck-scripts --print-build-logs
           nix build .#checks.x86_64-linux.tesmart-ctl-build --print-build-logs
