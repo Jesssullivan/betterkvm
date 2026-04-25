@@ -16,7 +16,9 @@ secure_delete() {
     local f="$1"
     if [ -f "$f" ]; then
         # Overwrite before unlinking — FAT32 flash media best-effort wipe
-        dd if=/dev/urandom of="$f" bs=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f") count=1 conv=notrunc 2>/dev/null || true
+        local sz
+        sz=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
+        dd if=/dev/urandom of="$f" bs="$sz" count=1 conv=notrunc 2>/dev/null || true
         sync
         rm -f "$f"
     fi

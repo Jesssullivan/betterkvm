@@ -32,7 +32,7 @@ check_warn() {
 }
 
 echo "=== KVM Lab Health Check ==="
-echo "$(date)"
+date
 echo ""
 
 # -- Pi Connectivity --

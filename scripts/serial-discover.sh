@@ -50,7 +50,7 @@ if [ "$found" -eq 0 ]; then
 fi
 
 # Also show any existing symlinks
-if ls /dev/serial/by-id/* 2>/dev/null | head -1 > /dev/null 2>&1; then
+if find /dev/serial/by-id/ -maxdepth 1 -type l 2>/dev/null | head -1 | grep -q .; then
     echo "=== Persistent Paths (by-id) ==="
     ls -la /dev/serial/by-id/ 2>/dev/null
 fi
