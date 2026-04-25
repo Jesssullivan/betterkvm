@@ -14,20 +14,17 @@ concurrency:
 permissions:
   contents: read
 
-# Switch to tinyland-nix when ARC runners are deployed
-env:
-  NIX_RUNNER: ubuntu-latest
-
 jobs:
   lint:
     name: Lint Nix
-    runs-on: ubuntu-latest
+    runs-on: tinyland-nix
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+      - uses: ./.github/actions/ensure-nix
+        with:
+          self_hosted: ${{ runner.environment != 'github-hosted' }}
 
       - name: statix
         run: nix run nixpkgs#statix -- check . --ignore vendor/
@@ -40,14 +37,15 @@ jobs:
 
   test:
     name: Property-Based Tests
-    runs-on: ubuntu-latest
+    runs-on: tinyland-nix
     needs: lint
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+      - uses: ./.github/actions/ensure-nix
+        with:
+          self_hosted: ${{ runner.environment != 'github-hosted' }}
 
       - name: Run PBT suite
         run: nix develop --command python -m pytest tests/ -v --junit-xml=test-results.xml
@@ -61,24 +59,16 @@ jobs:
 
   check:
     name: Flake Check
-    runs-on: ubuntu-latest
+    runs-on: tinyland-nix
     needs: lint
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-
-      - name: Configure Attic cache
-        continue-on-error: true
-        uses: ryanccn/attic-action@v0
+      - uses: ./.github/actions/ensure-nix
         with:
-          endpoint: ${{ vars.ATTIC_SERVER }}
-          cache: main
-          token: ${{ secrets.ATTIC_TOKEN }}
-          skip-push: true
+          self_hosted: ${{ runner.environment != 'github-hosted' }}
 
       - name: Flake checks (x86_64-linux, skip deploy checks that need aarch64)
         run: |
@@ -88,45 +78,48 @@ jobs:
 
   build-packages:
     name: Build Packages
-    runs-on: ubuntu-latest
+    runs-on: tinyland-nix
     needs: lint
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-
-      - name: Configure Attic cache
-        continue-on-error: true
-        uses: ryanccn/attic-action@v0
+      - uses: ./.github/actions/ensure-nix
         with:
-          endpoint: ${{ vars.ATTIC_SERVER }}
-          cache: main
-          token: ${{ secrets.ATTIC_TOKEN }}
+          self_hosted: ${{ runner.environment != 'github-hosted' }}
 
       - name: Build tesmart-ctl
         run: nix build .#packages.x86_64-linux.tesmart-ctl --print-build-logs
 
   build-image:
-    name: Build SD Image (native ARM64)
-    runs-on: ubuntu-24.04-arm
+    name: Build SD Image
+    runs-on: tinyland-nix
     needs: lint
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-
-      - name: Configure Attic cache
-        continue-on-error: true
-        uses: ryanccn/attic-action@v0
+      - uses: ./.github/actions/ensure-nix
         with:
-          endpoint: ${{ vars.ATTIC_SERVER }}
-          cache: main
-          token: ${{ secrets.ATTIC_TOKEN }}
+          self_hosted: ${{ runner.environment != 'github-hosted' }}
+
+      - name: Setup QEMU for aarch64
+        run: |
+          if ! nix run nixpkgs#qemu -- --version >/dev/null 2>&1; then
+            echo "::notice::QEMU not pre-installed, using binfmt"
+          fi
+          # Ensure binfmt_misc is registered for aarch64
+          if [ ! -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
+            sudo mkdir -p /proc/sys/fs/binfmt_misc
+            sudo mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+          fi
+
+      - name: Configure extra-platforms
+        run: |
+          echo "extra-platforms = aarch64-linux" | sudo tee -a /etc/nix/nix.conf
+          sudo systemctl restart nix-daemon 2>/dev/null || sudo pkill -HUP nix-daemon || true
+          sleep 2
 
       - name: Build serial-console SD image
         run: |

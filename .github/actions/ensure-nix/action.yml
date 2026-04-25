@@ -1,0 +1,80 @@
+name: Ensure Nix
+description: Install or recover Nix for hosted and self-hosted workflows.
+
+inputs:
+  self_hosted:
+    description: Whether the current job is running on a self-hosted runner.
+    required: false
+    default: "false"
+  attic_cache:
+    description: Preferred Attic cache name for self-hosted flywheel setup.
+    required: false
+    default: "main"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Nix on hosted runners
+      if: ${{ inputs.self_hosted != 'true' }}
+      uses: cachix/install-nix-action@v30
+
+    - name: Install Nix on self-hosted runners
+      if: ${{ inputs.self_hosted == 'true' }}
+      uses: DeterminateSystems/nix-installer-action@main
+
+    - name: Setup self-hosted cache hints
+      if: ${{ inputs.self_hosted == 'true' }}
+      shell: bash
+      run: |
+        ATTIC_URL="${ATTIC_SERVER:-http://attic.nix-cache.svc.cluster.local}"
+        ATTIC_HOST=$(echo "$ATTIC_URL" | sed 's|https\?://||;s|:.*||')
+        if getent hosts "$ATTIC_HOST" >/dev/null 2>&1; then
+          echo "ATTIC_SERVER=$ATTIC_URL" >> "$GITHUB_ENV"
+          echo "::notice::Attic cache reachable at $ATTIC_URL"
+        else
+          echo "::warning::Attic cache DNS unreachable ($ATTIC_HOST) -- running without cache"
+        fi
+        echo "ATTIC_CACHE=${{ inputs.attic_cache }}" >> "$GITHUB_ENV"
+        echo "BAZEL_REMOTE_CACHE=${BAZEL_REMOTE_CACHE:-grpc://bazel-cache.nix-cache.svc.cluster.local:9092}" >> "$GITHUB_ENV"
+
+    - name: Add Nix to PATH on self-hosted runners
+      if: ${{ inputs.self_hosted == 'true' }}
+      shell: bash
+      run: |
+        if command -v nix >/dev/null 2>&1; then
+          exit 0
+        fi
+        for nixbin in /nix/var/nix/profiles/default/bin "$HOME/.nix-profile/bin"; do
+          if [ -d "$nixbin" ]; then
+            echo "$nixbin" >> "$GITHUB_PATH"
+          fi
+        done
+
+    - name: Ensure Nix daemon is reachable
+      if: ${{ inputs.self_hosted == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        if nix store ping >/dev/null 2>&1; then
+          exit 0
+        fi
+        echo "::warning::Nix daemon unavailable; starting"
+        sudo rm -f /nix/var/nix/daemon-socket/socket || true
+        if command -v determinate-nixd >/dev/null 2>&1; then
+          sudo -b "$(command -v determinate-nixd)" daemon
+        else
+          NIX_DAEMON_BIN="$(command -v nix-daemon || true)"
+          if [ -z "$NIX_DAEMON_BIN" ]; then
+            echo "::error::nix-daemon is not on PATH"
+            exit 1
+          fi
+          sudo -b "$NIX_DAEMON_BIN" --daemon
+        fi
+        for _ in $(seq 1 15); do
+          if nix store ping >/dev/null 2>&1; then
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "::error::nix-daemon did not become reachable"
+        exit 1

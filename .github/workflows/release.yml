@@ -10,22 +10,30 @@ permissions:
 jobs:
   release:
     name: Build & Release SD Image
-    runs-on: ubuntu-24.04-arm
+    runs-on: tinyland-nix
+    timeout-minutes: 120
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-
-      - name: Configure Attic cache
-        uses: ryanccn/attic-action@v0
+      - uses: ./.github/actions/ensure-nix
         with:
-          endpoint: ${{ vars.ATTIC_SERVER }}
-          cache: main
-          token: ${{ secrets.ATTIC_TOKEN }}
+          self_hosted: ${{ runner.environment != 'github-hosted' }}
+
+      - name: Setup QEMU for aarch64
+        run: |
+          if [ ! -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
+            sudo mkdir -p /proc/sys/fs/binfmt_misc
+            sudo mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+          fi
+
+      - name: Configure extra-platforms
+        run: |
+          echo "extra-platforms = aarch64-linux" | sudo tee -a /etc/nix/nix.conf
+          sudo systemctl restart nix-daemon 2>/dev/null || sudo pkill -HUP nix-daemon || true
+          sleep 2
 
       - name: Build serial-console SD image
         run: |

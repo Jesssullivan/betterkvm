@@ -3,7 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-04-24
 - **Context**: TIN-509
-- **Decision**: Use GitHub public ARM64 runners for aarch64-linux builds; defer GloriousFlywheel private runners; wire Attic cache
+- **Decision**: Use GloriousFlywheel `tinyland-nix` runners with cluster-local Attic and Bazel caches; cross-compile aarch64-linux via QEMU on x86_64 runners with warm cache
 
 ## Context
 
@@ -58,43 +58,38 @@ Three alternatives were evaluated:
 
 ## Decision
 
-### Immediate (this week)
-1. **Switch `build-image` job to `ubuntu-24.04-arm`** — native aarch64-linux builds, no QEMU
-2. **Keep `lint`, `test`, `build-packages` on `ubuntu-latest`** — arch-independent or x86_64-only
-3. **Split `check` job** — x86_64 checks on `ubuntu-latest`, remove aarch64 QEMU check
-4. **Attic cache already wired** — fails open when off Tailscale
+### Immediate
+1. **All CI jobs on `tinyland-nix` GloriousFlywheel runners** — cluster-local access to Attic and Bazel caches
+2. **Cross-compile aarch64-linux SD images via QEMU on x86_64 runners** — with warm Attic cache, QEMU cross-compile is fast (cached derivations skip compilation)
+3. **`ensure-nix` composite action** — bootstraps Nix, sets `ATTIC_SERVER` and `BAZEL_REMOTE_CACHE` env vars from cluster DNS
+4. **Attic cache at `http://attic.nix-cache.svc.cluster.local`** — cluster-internal, no Tailscale dependency in CI
 
 ### Medium term
-- Monitor GloriousFlywheel for aarch64 ARC runner pool deployment
+- Deploy aarch64 ARC runner pool in GloriousFlywheel for native ARM builds
+- Wire Bazel remote cache for tesmart-ctl and MCP server builds
 - Evaluate RISE RISC-V runners for `musey` (RISC-V board) testing
-- Restore petting-zoo-mini linux-builder when Determinate Nix compatibility is resolved
 
 ### Future
-- When GF deploys aarch64 runners, evaluate migration from GH public to private pool
-- Wire Bazel remote cache for non-Nix build targets (tesmart-ctl, MCP server)
+- Native aarch64-linux runner pool for SD image builds (eliminates QEMU overhead)
+- Restore petting-zoo-mini linux-builder when Determinate Nix compatibility is resolved
 
 ## CI Workflow Changes
 
-### Before (QEMU, ~60-180 min)
+### Before (public GH runners, cold cache, ~120min+)
 ```yaml
 build-image:
-  runs-on: ubuntu-latest
-  steps:
-    - uses: DeterminateSystems/nix-installer-action@main
-      with:
-        extra-conf: |
-          extra-platforms = aarch64-linux
-    - uses: docker/setup-qemu-action@v3
-    - run: nix build .#images.serial-console
+  runs-on: ubuntu-latest  # or ubuntu-24.04-arm
+  # No Attic access, every derivation from source
 ```
 
-### After (native ARM, ~5-15 min estimated)
+### After (GF runners, warm Attic cache, ~10-20 min estimated)
 ```yaml
 build-image:
-  runs-on: ubuntu-24.04-arm
+  runs-on: tinyland-nix
   steps:
-    - uses: DeterminateSystems/nix-installer-action@main
-    - run: nix build .#images.serial-console
+    - uses: ./.github/actions/ensure-nix
+    # Cluster-local Attic at http://attic.nix-cache.svc.cluster.local
+    # QEMU cross-compile with cached derivations = fast
 ```
 
 ## Consequences
