@@ -89,6 +89,18 @@ def check_tcp(host: str, port: int, timeout: float = 2.0) -> bool:
         return False
 
 
+def ssh_service_status(host: str, service: str) -> dict:
+    try:
+        result = subprocess.run(
+            ["ssh", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=no",
+             f"root@{host}", f"systemctl is-active {service}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return {"active": result.stdout.strip() == "active", "status": result.stdout.strip()}
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return {"active": False, "status": "unreachable"}
+
+
 def run_health_check() -> dict:
     results = {}
     results["tesmart"] = {
@@ -99,6 +111,18 @@ def run_health_check() -> dict:
     results["serial_console"] = {
         "ssh_reachable": check_tcp(SERIAL_CONSOLE_HOST, 22),
     }
+
+    if check_tcp(SERIAL_CONSOLE_HOST, 22):
+        results["serial_console"]["ser2net"] = ssh_service_status(SERIAL_CONSOLE_HOST, "ser2net")
+        results["serial_console"]["nut"] = ssh_service_status(SERIAL_CONSOLE_HOST, "nut-server")
+        results["serial_console"]["tailscaled"] = ssh_service_status(SERIAL_CONSOLE_HOST, "tailscaled")
+
+    pikvm_host = "pikvm-primary"
+    results["pikvm"] = {"ssh_reachable": check_tcp(pikvm_host, 22)}
+    if check_tcp(pikvm_host, 22):
+        results["pikvm"]["kvmd"] = ssh_service_status(pikvm_host, "kvmd")
+        results["pikvm"]["ustreamer"] = ssh_service_status(pikvm_host, "kvmd-streamer")
+        results["pikvm"]["tailscaled"] = ssh_service_status(pikvm_host, "tailscaled")
 
     try:
         ts = subprocess.run(

@@ -180,6 +180,7 @@
               pkgs = nixpkgs.legacyPackages.${system};
               pythonWithPkgs = pkgs.python3.withPackages (ps: [
                 ps.pytest
+                ps.pytest-cov
                 ps.hypothesis
                 ps.setuptools
               ]);

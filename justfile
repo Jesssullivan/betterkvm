@@ -363,7 +363,7 @@ test-verbose:
 
 # Run PBT tests with JUnit XML output (for CI)
 test-ci:
-    just test -v --junit-xml=test-results.xml
+    just test -v --junit-xml=test-results.xml --cov-report=xml:coverage.xml
 
 # ─── Maintenance ─────────────────────────────────────────────
 

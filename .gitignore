@@ -8,3 +8,8 @@ hosts/pikvm-primary/preseed/authorized_keys
 images/
 result
 result-*
+
+# Test artifacts
+coverage.xml
+test-results.xml
+.hypothesis/
