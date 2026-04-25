@@ -63,21 +63,13 @@ jobs:
     name: Flake Check
     runs-on: ubuntu-latest
     needs: lint
-    timeout-minutes: 120
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
-        with:
-          extra-conf: |
-            extra-platforms = aarch64-linux
-
-      - name: Setup QEMU for aarch64
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Configure Attic cache
         continue-on-error: true
@@ -114,24 +106,16 @@ jobs:
         run: nix build .#packages.x86_64-linux.tesmart-ctl --print-build-logs
 
   build-image:
-    name: Build SD Image
-    runs-on: ubuntu-latest
+    name: Build SD Image (native ARM64)
+    runs-on: ubuntu-24.04-arm
     needs: lint
-    timeout-minutes: 180
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
-        with:
-          extra-conf: |
-            extra-platforms = aarch64-linux
-
-      - name: Setup QEMU for aarch64
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Configure Attic cache
         continue-on-error: true
