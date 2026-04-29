@@ -51,6 +51,27 @@
             # Raspberry Pi 4 hardware support
             nixos-hardware.nixosModules.raspberry-pi-4
 
+            # The generic aarch64 SD image imports all-hardware.nix, which adds
+            # non-RPi modules that are absent from the Raspberry Pi kernel.
+            (
+              { config, lib, ... }:
+              {
+                boot.initrd.includeDefaultModules = false;
+                boot.initrd.availableKernelModules = lib.mkForce (
+                  [
+                    "usbhid"
+                    "usb-storage"
+                    "vc4"
+                    "pcie-brcmstb"
+                    "reset-raspberrypi"
+                    "ext2"
+                    "ext4"
+                  ]
+                  ++ lib.optional config.boot.initrd.network.enable "genet"
+                );
+              }
+            )
+
             # Secrets management
             sops-nix.nixosModules.sops
             { sops.package = sops-nix.packages.aarch64-linux.sops-install-secrets; }
