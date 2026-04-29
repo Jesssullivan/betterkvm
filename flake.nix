@@ -176,17 +176,32 @@
       # -- Dev Shell --
       devShells =
         let
+          mkPythonWithPkgs =
+            pkgs:
+            pkgs.python3.withPackages (ps: [
+              ps.pytest
+              ps.pytest-cov
+              ps.hypothesis
+              ps.pyyaml
+              ps.setuptools
+            ]);
+
+          mkTestShell =
+            system:
+            let
+              pkgs = nixpkgs.legacyPackages.${system};
+            in
+            pkgs.mkShell {
+              buildInputs = [
+                (mkPythonWithPkgs pkgs)
+              ];
+            };
+
           mkDevShell =
             system:
             let
               pkgs = nixpkgs.legacyPackages.${system};
-              pythonWithPkgs = pkgs.python3.withPackages (ps: [
-                ps.pytest
-                ps.pytest-cov
-                ps.hypothesis
-                ps.pyyaml
-                ps.setuptools
-              ]);
+              pythonWithPkgs = mkPythonWithPkgs pkgs;
             in
             pkgs.mkShell {
               buildInputs =
@@ -208,10 +223,22 @@
             };
         in
         {
-          x86_64-linux.default = mkDevShell "x86_64-linux";
-          aarch64-linux.default = mkDevShell "aarch64-linux";
-          aarch64-darwin.default = mkDevShell "aarch64-darwin";
-          x86_64-darwin.default = mkDevShell "x86_64-darwin";
+          x86_64-linux = {
+            default = mkDevShell "x86_64-linux";
+            test = mkTestShell "x86_64-linux";
+          };
+          aarch64-linux = {
+            default = mkDevShell "aarch64-linux";
+            test = mkTestShell "aarch64-linux";
+          };
+          aarch64-darwin = {
+            default = mkDevShell "aarch64-darwin";
+            test = mkTestShell "aarch64-darwin";
+          };
+          x86_64-darwin = {
+            default = mkDevShell "x86_64-darwin";
+            test = mkTestShell "x86_64-darwin";
+          };
         };
     };
 }
