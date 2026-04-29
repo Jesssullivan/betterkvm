@@ -153,18 +153,21 @@ download-image host version="latest":
     echo "Image ready: images/{{host}}.img"
     ls -lh "images/{{host}}.img"
 
-# Download SD image from latest CI run artifact
-download-ci-image host="serial-console":
+# Download SD image from a CI run artifact (latest success by default)
+download-ci-image host="serial-console" run_id="latest":
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p images/{{host}}
-    echo "Finding latest successful Build SD Image run..."
-    run_id=$(gh run list --workflow ci.yml --status success \
-        --json databaseId --jq '.[0].databaseId' 2>/dev/null) || true
-    if [ -z "${run_id}" ]; then
-        echo "No successful run found. Checking in-progress runs..."
-        run_id=$(gh run list --workflow ci.yml --status in_progress \
+    run_id="{{run_id}}"
+    if [ "${run_id}" = "latest" ]; then
+        echo "Finding latest successful Build SD Image run..."
+        run_id=$(gh run list --workflow ci.yml --status success \
             --json databaseId --jq '.[0].databaseId' 2>/dev/null) || true
+        if [ -z "${run_id}" ]; then
+            echo "No successful run found. Checking in-progress runs..."
+            run_id=$(gh run list --workflow ci.yml --status in_progress \
+                --json databaseId --jq '.[0].databaseId' 2>/dev/null) || true
+        fi
     fi
     if [ -z "${run_id}" ]; then
         echo "ERROR: No CI run found. Trigger with: gh workflow run ci.yml"
