@@ -21,6 +21,7 @@ jobs:
       - uses: ./.github/actions/ensure-nix
         with:
           self_hosted: ${{ runner.environment != 'github-hosted' }}
+          github_token: ${{ github.token }}
 
       - name: Build serial-console SD image
         run: |

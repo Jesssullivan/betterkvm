@@ -10,6 +10,10 @@ inputs:
     description: Preferred Attic cache name for self-hosted flywheel setup.
     required: false
     default: "main"
+  github_token:
+    description: GitHub token used by Nix for authenticated GitHub flake fetches.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -78,3 +82,19 @@ runs:
         done
         echo "::error::nix-daemon did not become reachable"
         exit 1
+
+    - name: Configure authenticated GitHub access for Nix
+      if: ${{ inputs.github_token != '' }}
+      shell: bash
+      env:
+        NIX_GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set -euo pipefail
+        {
+          echo "NIX_CONFIG<<NIX_CONFIG_EOF"
+          if [ -n "${NIX_CONFIG:-}" ]; then
+            printf '%s\n' "$NIX_CONFIG"
+          fi
+          printf 'access-tokens = github.com=%s\n' "$NIX_GITHUB_TOKEN"
+          echo "NIX_CONFIG_EOF"
+        } >> "$GITHUB_ENV"
