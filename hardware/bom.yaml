@@ -2,6 +2,19 @@
 # Machine-parseable hardware inventory for the 16-port multiarch KVM lab.
 # Prices in USD, last updated 2026-04-24.
 
+inventory_status:
+  default_status: "needs_physical_verification"
+  allowed_statuses:
+    - "owned"
+    - "ordered"
+    - "missing"
+    - "substituted"
+    - "not_needed"
+  notes:
+    - "Mark each item during bench audit before flashing."
+    - "Current serial BOM does not prove full 16-port day-one serial coverage."
+    - "Record substitutions here and in docs/bom.md."
+
 phases:
   - name: "Phase 1: Core KVM + Serial Console"
     target_cost: 592

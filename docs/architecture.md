@@ -127,7 +127,7 @@ NixOS
 ### TESmart Control
 ```
 tesmart-ctl (Python CLI)
-  |-> TCP transport (192.168.1.10:5000, default)
+  |-> TCP transport (10.0.0.50:5000 lab default; 192.168.1.10 factory default)
   |-> RS232 serial transport (--serial /dev/ttyUSB0, backup)
   |-> Commands: get, set, buzzer, lcd, autodetect, info, monitor
   |-> Protocol: 0xAA 0xBB 0x03 CMD VAL 0xEE (see docs/tesmart-protocol.md)
@@ -136,7 +136,7 @@ tesmart-ctl (Python CLI)
 ## Deployment Workflow
 
 ### Initial Setup (Zero-Touch)
-1. `just build-image serial-console` — Build NixOS SD image on x86_64
+1. `just build-image serial-console` — Build NixOS SD image locally or in CI
 2. `just flash serial-console /dev/sdX` — Flash to SD card with dd
 3. Boot Pi #2, it auto-joins Tailscale
 4. `just flash-pikvm /dev/diskN` — Download PiKVM OS, flash, and preseed

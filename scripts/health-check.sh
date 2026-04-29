@@ -13,10 +13,10 @@ check() {
     local name="$1"; shift
     if "$@" >/dev/null 2>&1; then
         printf "  ${GREEN}PASS${NC}  %s\n" "${name}"
-        ((PASS++))
+        ((++PASS))
     else
         printf "  ${RED}FAIL${NC}  %s\n" "${name}"
-        ((FAIL++))
+        ((++FAIL))
     fi
 }
 
@@ -24,10 +24,10 @@ check_warn() {
     local name="$1"; shift
     if "$@" >/dev/null 2>&1; then
         printf "  ${GREEN}PASS${NC}  %s\n" "${name}"
-        ((PASS++))
+        ((++PASS))
     else
         printf "  ${YELLOW}WARN${NC}  %s\n" "${name}"
-        ((WARN++))
+        ((++WARN))
     fi
 }
 
@@ -53,11 +53,12 @@ echo ""
 
 # -- TESmart Switch --
 echo "-- TESmart KVM Switch --"
-TESMART_HOST="${TESMART_HOST:-192.168.1.10}"
-check "TESmart TCP:5000 reachable" \
-    bash -c "timeout 3 bash -c '</dev/tcp/${TESMART_HOST}/5000'"
+export TESMART_HOST="${TESMART_HOST:-10.0.0.50}"
+export TESMART_PORT="${TESMART_PORT:-5000}"
+check "TESmart TCP:${TESMART_PORT} reachable" \
+    python3 -c 'import os, socket; s = socket.create_connection((os.environ["TESMART_HOST"], int(os.environ["TESMART_PORT"])), 3); s.close()'
 check "TESmart port query" \
-    python3 "$(dirname "$0")/../packages/tesmart-ctl/tesmart_ctl.py" --host "${TESMART_HOST}" get
+    python3 "$(dirname "$0")/../packages/tesmart-ctl/tesmart_ctl.py" --host "${TESMART_HOST}" --port "${TESMART_PORT}" get
 echo ""
 
 # -- PiKVM Services --
@@ -93,8 +94,8 @@ echo ""
 
 # -- UPS Status --
 echo "-- UPS Status --"
-ups_status=$(ssh -o ConnectTimeout=3 "root@${SERIAL_ADDR}" 'upsc rack-ups ups.status 2>/dev/null' || echo "UNKNOWN")
-ups_charge=$(ssh -o ConnectTimeout=3 "root@${SERIAL_ADDR}" 'upsc rack-ups battery.charge 2>/dev/null' || echo "?")
+ups_status=$(ssh -o ConnectTimeout=3 "root@${SERIAL_ADDR}" 'upsc rack-ups ups.status 2>/dev/null' 2>/dev/null || echo "UNKNOWN")
+ups_charge=$(ssh -o ConnectTimeout=3 "root@${SERIAL_ADDR}" 'upsc rack-ups battery.charge 2>/dev/null' 2>/dev/null || echo "?")
 echo "  Status: ${ups_status}  Charge: ${ups_charge}%"
 echo ""
 

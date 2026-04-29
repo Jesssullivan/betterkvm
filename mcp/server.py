@@ -6,6 +6,7 @@ info, and health checks via Model Context Protocol (stdio transport).
 """
 
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -29,8 +30,8 @@ MACHINE_MAP = {
     16: {"hostname": None, "arch": None, "serial_port": 3016},
 }
 
-TESMART_HOST = "192.168.1.10"
-TESMART_PORT = 5000
+TESMART_HOST = os.environ.get("TESMART_HOST", "10.0.0.50")
+TESMART_PORT = int(os.environ.get("TESMART_PORT", "5000"))
 SERIAL_CONSOLE_HOST = "serial-console"
 
 HEADER = bytes([0xAA, 0xBB, 0x03])

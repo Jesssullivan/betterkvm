@@ -10,6 +10,7 @@
 - [ADR-003: Build Infrastructure](adr-003-build-infrastructure.md) — Native ARM64 CI runners, deferred GF/lab builders
 
 ## Operations
+- [lab-bringup-plan.md](lab-bringup-plan.md) — Staged hardware bring-up plan and acceptance criteria
 - [runbook-secret-rotation.md](runbook-secret-rotation.md) — Tailscale keys, kvmd creds, age key rotation
 - [tailscale-acl-alignment.md](tailscale-acl-alignment.md) — Required Tailscale tags, ACL coverage
 

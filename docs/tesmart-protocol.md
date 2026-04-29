@@ -7,7 +7,7 @@ Applies to HKS1601A1U and similar models (HKS801-M24, etc.).
 
 | Transport | Address | Speed | Notes |
 |-----------|---------|-------|-------|
-| TCP | `192.168.1.10:5000` (factory default) | N/A | Preferred when LAN is up |
+| TCP | `10.0.0.50:5000` (lab default), `192.168.1.10:5000` (factory default) | N/A | Preferred when LAN is up |
 | RS232 | DB9 on rear panel | 9600 8N1 | Backup when LAN is down |
 
 RS232 uses a standard null-modem cable or USB-TTL adapter at 3.3V/5V TTL
@@ -121,7 +121,7 @@ single-line ASCII answer.
 
 | Query | Response Example | Description |
 |-------|-----------------|-------------|
-| `IP?` | `192.168.1.10` | Current IP address |
+| `IP?` | `10.0.0.50` | Current IP address |
 | `PT?` | `5000` | TCP control port |
 | `GW?` | `192.168.1.1` | Default gateway |
 | `MA?` | `AA:BB:CC:DD:EE:FF` | MAC address |

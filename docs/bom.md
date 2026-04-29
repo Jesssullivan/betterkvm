@@ -1,5 +1,17 @@
 # Bill of Materials
 
+## Physical Verification Status
+
+This BOM is the planned purchasing baseline until the bench is audited. During
+bring-up, mark each line as one of: `owned`, `ordered`, `missing`,
+`substituted`, or `not needed`. Record substitutions in this file and in
+`hardware/bom.yaml`.
+
+Day-one gap to verify: the planned serial hardware covers a 4-port Gearmo unit,
+four additional USB-TTL adapters, and one TESmart RS232 backup path. Full
+16-port target serial coverage needs either more adapters/hubs or a serial
+console appliance such as the optional Digi CM16.
+
 ## Phase 1: Core KVM + Serial Console (~$600)
 
 | # | Item | Qty | Price | Total | Source |

@@ -1,4 +1,4 @@
-{ config, ... }:
+_:
 {
   sops = {
     defaultSopsFile = ../../secrets/pikvm.yaml;

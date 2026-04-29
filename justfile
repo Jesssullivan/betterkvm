@@ -10,11 +10,12 @@ default:
 
 # ─── Build & Flash ───────────────────────────────────────────
 
-# Build NixOS SD card image for a host (cross-compiled on x86_64)
+# Build NixOS SD card image for a host
 build-image host:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Building SD image for {{host}}..."
+    mkdir -p images
     nix build ".#images.{{host}}" --out-link "images/{{host}}"
     image=$(find images/{{host}}/ -name '*.img*' | head -1)
     echo "Image built: ${image}"
@@ -371,14 +372,17 @@ test-ci:
 update:
     nix flake update
 
-# Lint all Nix files (excludes vendor/)
+# Lint repo Nix source roots
 lint:
-    nix run nixpkgs#statix -- check . --ignore vendor/
-    nix run nixpkgs#deadnix -- --exclude vendor/ .
+    nix run nixpkgs#statix -- check flake.nix
+    nix run nixpkgs#statix -- check hosts
+    nix run nixpkgs#statix -- check modules
+    nix run nixpkgs#statix -- check packages
+    nix run nixpkgs#deadnix -- flake.nix hosts modules packages
 
-# Format all Nix files (excludes vendor/)
+# Format repo Nix source roots
 fmt:
-    find . -name '*.nix' -not -path './vendor/*' -exec nix run nixpkgs#nixfmt-rfc-style -- {} +
+    find flake.nix hosts modules packages -name '*.nix' -exec nix run nixpkgs#nixfmt-rfc-style -- {} +
 
 # Check flake
 check:
@@ -848,10 +852,10 @@ validate:
         shift
         if "$@" &>/dev/null; then
             printf "  \033[32m✓\033[0m %s\n" "$label"
-            ((pass++))
+            ((++pass))
         else
             printf "  \033[31m✗\033[0m %s\n" "$label"
-            ((fail++))
+            ((++fail))
         fi
     }
 
@@ -883,10 +887,16 @@ validate:
 
     echo ""
     echo "TESmart KVM:"
-    check "TESmart reachable (TCP 5000)" bash -c "echo | nc -w 2 192.168.1.10 5000"
+    export TESMART_HOST="${TESMART_HOST:-10.0.0.50}"
+    export TESMART_PORT="${TESMART_PORT:-5000}"
+    check "TESmart reachable (TCP ${TESMART_PORT})" \
+          python3 -c 'import os, socket; s = socket.create_connection((os.environ["TESMART_HOST"], int(os.environ["TESMART_PORT"])), 3); s.close()'
     # Try to query current port if tesmart-ctl is available
     if command -v tesmart-ctl &>/dev/null; then
-        port=$(tesmart-ctl get-port 2>/dev/null || echo "?")
+        port=$(tesmart-ctl --host "${TESMART_HOST}" --port "${TESMART_PORT}" get 2>/dev/null || echo "?")
+        echo "  Current KVM port: ${port}"
+    elif [ -x packages/tesmart-ctl/tesmart_ctl.py ]; then
+        port=$(python3 packages/tesmart-ctl/tesmart_ctl.py --host "${TESMART_HOST}" --port "${TESMART_PORT}" get 2>/dev/null || echo "?")
         echo "  Current KVM port: ${port}"
     fi
 

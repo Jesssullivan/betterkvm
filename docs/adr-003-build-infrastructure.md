@@ -3,11 +3,14 @@
 - **Status**: Accepted
 - **Date**: 2026-04-24
 - **Context**: TIN-509
-- **Decision**: Use GloriousFlywheel `tinyland-nix` runners with cluster-local Attic and Bazel caches; cross-compile aarch64-linux via QEMU on x86_64 runners with warm cache
+- **Decision**: Use GloriousFlywheel `tinyland-nix` runners for x86_64 validation with cluster-local Attic/Bazel cache hints; build aarch64-linux SD images on native GitHub-hosted `ubuntu-24.04-arm` until a native GloriousFlywheel arm64 lane exists
 
 ## Context
 
-BetterKVM builds NixOS SD card images targeting `aarch64-linux` (Raspberry Pi 4B). The current CI uses QEMU emulation on x86_64 GitHub runners (`ubuntu-latest`), which is extremely slow (timeout set at 180 minutes).
+BetterKVM builds NixOS SD card images targeting `aarch64-linux` (Raspberry Pi
+4B). The original CI plan used QEMU emulation on x86_64 runners, which was slow
+and later failed on the `tinyland-nix` lane when binfmt could not execute
+aarch64 builders.
 
 Three alternatives were evaluated:
 1. GloriousFlywheel private ARC runners
@@ -58,15 +61,33 @@ Three alternatives were evaluated:
 
 ## Decision
 
+### Amendment: 2026-04-29
+
+The `Build SD Image` and release image jobs now run on GitHub-hosted
+`ubuntu-24.04-arm` runners. GitHub's hosted runner reference lists this as a
+Linux arm64 label, and the previous `tinyland-nix` QEMU path failed with
+`Exec format error` because binfmt was not actually able to execute aarch64
+builders. Keep `tinyland-nix` for fast x86_64 lint, package, and PBT jobs; use
+native arm64 where the output is an aarch64 NixOS SD image.
+
+The adjacent GloriousFlywheel/Jess overlay state confirms the same boundary:
+`jesssullivan-infra` exposes capability-shaped lanes such as `tinyland-nix`,
+`tinyland-nix-heavy`, `tinyland-nix-kvm`, and `tinyland-nix-gpu`, plus the shared
+Attic and Bazel cache endpoints. It does not provide a native `aarch64-linux`
+image-builder lane for BetterKVM today, and BetterKVM should not introduce a
+repo-specific runner label to get one. Current proof is shared-cache attachment
+for x86_64 validation and local Bazel execution, not full remote build offload.
+
 ### Immediate
-1. **All CI jobs on `tinyland-nix` GloriousFlywheel runners** — cluster-local access to Attic and Bazel caches
-2. **Cross-compile aarch64-linux SD images via QEMU on x86_64 runners** — with warm Attic cache, QEMU cross-compile is fast (cached derivations skip compilation)
+1. **x86_64 validation jobs on `tinyland-nix` GloriousFlywheel runners** — cluster-local access to Attic and Bazel caches
+2. **aarch64-linux SD image jobs on GitHub-hosted `ubuntu-24.04-arm` runners** — native execution avoids QEMU/binfmt fragility
 3. **`ensure-nix` composite action** — bootstraps Nix, sets `ATTIC_SERVER` and `BAZEL_REMOTE_CACHE` env vars from cluster DNS
-4. **Attic cache at `http://attic.nix-cache.svc.cluster.local`** — cluster-internal, no Tailscale dependency in CI
+4. **Attic cache at `http://attic.nix-cache.svc.cluster.local`** — cluster-internal, used by `tinyland-nix` jobs
 
 ### Medium term
 - Deploy aarch64 ARC runner pool in GloriousFlywheel for native ARM builds
-- Wire Bazel remote cache for tesmart-ctl and MCP server builds
+- Wire Bazel shared-cache proof for tesmart-ctl and MCP server builds if/when
+  BetterKVM adopts a Bazel surface; the current repo is Nix/Python-only
 - Evaluate RISE RISC-V runners for `musey` (RISC-V board) testing
 
 ### Future
@@ -84,25 +105,29 @@ build-image:
 
 ### After (GF runners, warm Attic cache, ~10-20 min estimated)
 ```yaml
-build-image:
+lint:
   runs-on: tinyland-nix
+
+build-image:
+  runs-on: ubuntu-24.04-arm
   steps:
     - uses: ./.github/actions/ensure-nix
-    # Cluster-local Attic at http://attic.nix-cache.svc.cluster.local
-    # QEMU cross-compile with cached derivations = fast
+    - run: nix build .#images.serial-console --print-build-logs
 ```
 
 ## Consequences
 
 - Build times drop from ~60-180 min to ~5-15 min (estimated 10-22x improvement)
-- No dependency on GloriousFlywheel or lab infrastructure for CI
+- SD image builds no longer depend on GloriousFlywheel or lab infrastructure
 - Free for public repos; within free minutes for private repos
 - QEMU and docker/setup-qemu-action removed from CI (simpler pipeline)
 - RISC-V CI path available via RISE when needed
-- Attic cache continues to provide warm builds when on Tailscale
+- Attic and Bazel cache hints continue to attach x86_64 jobs to the shared
+  GloriousFlywheel substrate where the runner can resolve cluster-local DNS
 
 ## References
 
+- [GitHub-hosted runners reference](https://docs.github.com/actions/reference/runners/github-hosted-runners)
 - [GitHub ARM64 runners GA](https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/)
 - [ARM64 in private repos](https://github.blog/changelog/2026-01-29-arm64-standard-runners-are-now-available-in-private-repositories/)
 - [Actuated: native ARM 22x faster](https://actuated.com/blog/native-arm64-for-github-actions)

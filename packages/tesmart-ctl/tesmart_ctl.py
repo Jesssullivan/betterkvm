@@ -10,11 +10,11 @@ Usage:
     tesmart-ctl info                    Query active port + network config
     tesmart-ctl monitor                 Continuously poll and display port
 
-Protocol: 0xAA 0xBB 0x03 <cmd> <val> 0xEE over TCP (default 192.168.1.10:5000)
+Protocol: 0xAA 0xBB 0x03 <cmd> <val> 0xEE over TCP (default 10.0.0.50:5000)
           Same binary protocol over RS232 at 9600 8N1
 
 Environment:
-    TESMART_HOST  (default: 192.168.1.10)
+    TESMART_HOST  (default: 10.0.0.50)
     TESMART_PORT  (default: 5000)
 """
 
@@ -34,7 +34,7 @@ CMD_READ = 0x10
 CMD_AUTODET = 0x81
 RESP_PORT = 0x11
 
-DEFAULT_HOST = os.environ.get("TESMART_HOST", "192.168.1.10")
+DEFAULT_HOST = os.environ.get("TESMART_HOST", "10.0.0.50")
 DEFAULT_PORT = int(os.environ.get("TESMART_PORT", "5000"))
 TIMEOUT = 3.0
 RETRY_COUNT = 3

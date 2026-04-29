@@ -14,7 +14,7 @@ kvmd:
         drivers:
             tes:
                 type: tesmart
-                host: 192.168.1.10   # TESmart default IP (change to match your config)
+                host: 10.0.0.50   # Lab LAN address; factory default is 192.168.1.10
                 port: 5000
 
             # Wake-on-LAN drivers for machines that support it
