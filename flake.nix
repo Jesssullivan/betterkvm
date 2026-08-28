@@ -181,6 +181,21 @@
                   tesmart-ctl-build =
                     self.packages.${system}.tesmart-ctl
                       or (pkgs.runCommand "tesmart-ctl-skip" { } "echo 'skipped on ${system}'; touch $out");
+                }
+                # NixOS VM tests (TIN-539) need KVM, which is only sanctioned
+                # here on x86_64-linux CI runners (GitHub-hosted `ubuntu-latest`
+                # has had KVM since 2023; module logic under test is
+                # arch-independent, so one arch's VM proves the Nix code path
+                # aarch64 hosts also run). Do not add these under
+                # aarch64-linux/darwin -- there is no KVM there in CI, and a
+                # `nix flake check` that silently skips VM tests on the arches
+                # that lack it is the gate-theater failure mode TIN-3457 warns
+                # about, so this is an explicit restriction, not an omission.
+                // pkgs.lib.optionalAttrs (system == "x86_64-linux") {
+                  vm-ser2net = import ./tests/vm/ser2net.nix { inherit pkgs; };
+                  vm-nut = import ./tests/vm/nut.nix { inherit pkgs; };
+                  vm-tailscale = import ./tests/vm/tailscale.nix { inherit pkgs; };
+                  vm-integration = import ./tests/vm/integration.nix { inherit pkgs; };
                 };
             in
             {
