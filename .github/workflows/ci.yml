@@ -83,6 +83,25 @@ jobs:
           nix build .#checks.x86_64-linux.shellcheck-scripts --print-build-logs
           nix build .#checks.x86_64-linux.tesmart-ctl-build --print-build-logs
 
+      # TIN-539: NixOS VM tests (pkgs.testers.runNixOSTest) for ser2net, NUT,
+      # and tailscale module logic, no physical hardware required. These need
+      # /dev/kvm inside the runner. `tinyland-nix` is a self-hosted ARC
+      # runner, not GitHub's own `ubuntu-latest` (which has had KVM since
+      # 2023 per DeterminateSystems' installer setting
+      # `system-features = nixos-test kvm` automatically) -- this repo's CI
+      # was not previously proven to have KVM passthrough at all. If this
+      # step fails with a `/dev/kvm` or `qemu-kvm` permission/availability
+      # error rather than an actual test assertion failure, that is the
+      # runner's nested-virtualization posture, not a defect in the tests
+      # themselves; route it to whoever owns tinyland-nix's ARC pod spec
+      # rather than re-authoring the tests.
+      - name: NixOS VM tests (ser2net, NUT, tailscale)
+        run: |
+          nix build .#checks.x86_64-linux.vm-ser2net --print-build-logs
+          nix build .#checks.x86_64-linux.vm-nut --print-build-logs
+          nix build .#checks.x86_64-linux.vm-tailscale --print-build-logs
+          nix build .#checks.x86_64-linux.vm-integration --print-build-logs
+
   build-packages:
     name: Build Packages
     runs-on: tinyland-nix
